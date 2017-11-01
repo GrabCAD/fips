@@ -11,6 +11,15 @@ http://floooh.github.io/fips/index.html
 
 ### Public Service Announcements
 
+- **01-Nov-2017**:  MODit3D/fips fork adds FIPS_ROOT environment variable
+for moving the fips output files (fips-build, fips-deploy, fetched dependencies,
+and fips itself when cloned by the fips bootstrap script) to an out of tree
+path.  If FIPS_ROOT is not defined, the behavior is the current default.
+
+  * **NOTE**: fips/templates/fips currently points
+to the fork for bootstrapping.  If this change is merged into main fips repo
+that line should be removed in favor of the defualt fips repo.
+
 - **16-Aug-2017**: I found (and fixed) some inconsistent behaviour when 
 the cmake project name is different from the project's directory name,
 this may change the behaviour of cmake- and python-code-generator
