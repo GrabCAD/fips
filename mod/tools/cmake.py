@@ -18,7 +18,7 @@ def check_exists(fips_dir, major=2, minor=8) :
     :returns:   True if cmake found and is the required version
     """
     try:
-        out = subprocess.check_output(['cmake', '--version'], universal_newlines=True)
+        out = subprocess.check_output(['cmake', '--version']).decode("utf-8")
         ver = out.split()[2].split('.')
         if int(ver[0]) > major or (int(ver[0]) == major and int(ver[1]) >= minor):
             return True
@@ -69,17 +69,22 @@ def run_gen(cfg, fips_dir, project_dir, build_dir, toolchain_path, defines) :
     return res == 0
 
 #------------------------------------------------------------------------------
-def run_build(fips_dir, target, build_type, build_dir) :
+def run_build(fips_dir, target, build_type, build_dir, num_jobs=1) :
     """run cmake in build mode
 
     :param target:          build target, can be None (builds all)
     :param build_type:      CMAKE_BUILD_TYPE string (e.g. Release, Debug)
     :param build_dir:       path to the build directory
+    :param num_jobs:        number of parallel jobs (default: 1)
     :returns:               True if cmake returns successful
     """
     cmdLine = 'cmake --build . --config {}'.format(build_type)
     if target :
         cmdLine += ' --target {}'.format(target)
+    if platform.system() == 'Windows' :
+        cmdLine += ' -- /nologo /verbosity:minimal /maxcpucount:{}'.format(num_jobs)
+    else :
+        cmdLine += ' -- -j{}'.format(num_jobs)
     print(cmdLine)
     res = subprocess.call(cmdLine, cwd=build_dir, shell=True)
     return res == 0

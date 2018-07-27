@@ -3,6 +3,7 @@
 import os.path
 import sys
 import platform
+import multiprocessing
 import yaml
 from mod import log
 
@@ -47,10 +48,11 @@ def get_build_dir(fips_dir, proj_name, cfg) :
 
     :param fips_dir:    absolute path of fips
     :param proj_name:   project name
-    :param cfg:         config object
+    :param cfg:         build config name (or config object for backward compatibility)
     :returns:           absolute path of build directory
     """
-    return '{}/fips-build/{}/{}'.format(get_workspace_dir(fips_dir), proj_name, cfg['name'])
+    cfg_name = cfg if type(cfg) == str else cfg['name']
+    return '{}/fips-build/{}/{}'.format(get_workspace_dir(fips_dir), proj_name, cfg_name)
 
 #-------------------------------------------------------------------------------
 def get_deploy_dir(fips_dir, proj_name, cfg) :
@@ -58,10 +60,74 @@ def get_deploy_dir(fips_dir, proj_name, cfg) :
 
     :param fips_dir:    absolute path of fips
     :param proj_name:   project name
-    :param cfg:         config object
+    :param cfg:         build config name (or config object for backward compatibility)
     :returns:           absolute path of deploy directory
     """
-    return '{}/fips-deploy/{}/{}'.format(get_workspace_dir(fips_dir), proj_name, cfg['name'])
+    cfg_name = cfg if type(cfg) == str else cfg['name']
+    return '{}/fips-deploy/{}/{}'.format(get_workspace_dir(fips_dir), proj_name, cfg_name)
+
+#-------------------------------------------------------------------------------
+def get_fips_dir(proj_dir, name):
+    """Internal helper method to check for and return the absolute path of
+    a fips directory.
+
+    If name is 'config', the following happens:
+
+    If 'proj_dir/fips-configs/' exists, return that path, otherwise,
+    if 'proj_dir/fips-files/configs' exists, return that path, otherwise,
+    return None.
+
+    :param proj_dir:    absolute path of project directory
+    :name:              the name without the 'fips-' prefix
+    """
+    d0 = proj_dir + '/fips-' + name
+    d1 = proj_dir + '/fips-files/' + name
+    if os.path.isdir(d0):
+        return d0
+    elif os.path.isdir(d1):
+        return d1
+    else:
+        return None
+
+#-------------------------------------------------------------------------------
+def get_configs_dir(proj_dir):
+    """returns path to directory with project-specific config files, or
+    None if no such directory exists.
+
+    :param proj_dir:    absolute path of project directory
+    :returns:           absolute path of configs dir, or None 
+    """
+    return get_fips_dir(proj_dir, 'configs')
+
+#-------------------------------------------------------------------------------
+def get_verbs_dir(proj_dir):
+    """returns path to directory with project-specifc verbs, or None
+    if no such directory exists.
+
+    :param proj_dir:    absolute path of project directory
+    :returns:           absolute path of verbs dir, or None
+    """
+    return get_fips_dir(proj_dir, 'verbs')
+
+#-------------------------------------------------------------------------------
+def get_generators_dir(proj_dir):
+    """returns path to directory with project-specific generators, or None
+    if no such directory exists.
+
+    :param proj_dir:    absolute path of project directory
+    :returns:           absolute path of generators dir, or None
+    """
+    return get_fips_dir(proj_dir, 'generators')
+
+#-------------------------------------------------------------------------------
+def get_toolchains_dir(proj_dir):
+    """returns path to directory with project-specific cmake toolchain files,
+    or None if no such directory exists.
+
+    :param proj_dir:    absolute path of project directory
+    :returns:           absolute path of toolchains dir, or None
+    """
+    return get_fips_dir(proj_dir, 'toolchains')
 
 #-------------------------------------------------------------------------------
 def get_giturl_from_url(url) :
@@ -225,9 +291,29 @@ def get_cfg_headersdirs_by_target(fips_dir, proj_dir, cfg):
     build_dir = get_build_dir(fips_dir, proj_name, cfg)
     path = build_dir + '/fips_headerdirs.yml'
     if os.path.isfile(path):
-        target = {}
+        headerdirs = {}
         with open(path) as f:
             headerdirs = yaml.load(f)
         return True, headerdirs
     else:
         return False,{}
+
+#-------------------------------------------------------------------------------
+def get_cfg_defines_by_target(fips_dir, proj_dir, cfg):
+    proj_name = get_project_name_from_dir(proj_dir)
+    build_dir = get_build_dir(fips_dir, proj_name, cfg)
+    path = build_dir + '/fips_defines.yml'
+    if os.path.isfile(path):
+        defines = {}
+        with open(path) as f:
+            defines = yaml.load(f)
+        return True,defines
+    else:
+        return False,{}
+
+#-------------------------------------------------------------------------------
+def get_num_cpucores():
+    try :
+        return multiprocessing.cpu_count()
+    except NotImplementedError :
+        return 2

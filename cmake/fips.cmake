@@ -15,8 +15,8 @@ if(FIPS_ROOT)
     set(FIPS_BUILD_DIR "${FIPS_ROOT}/fips-build")
 else(FIPS_ROOT)
     message("****[OOPS]**** FIPS_ROOT not set!!! ")
-    get_filename_component(FIPS_DEPLOY_DIR "../fips-deploy" ABSOLUTE)
-    get_filename_component(FIPS_BUILD_DIR "../fips-build" ABSOLUTE)
+    get_filename_component(FIPS_DEPLOY_DIR "${FIPS_ROOT_DIR}/../fips-deploy" ABSOLUTE)
+    get_filename_component(FIPS_BUILD_DIR "${FIPS_ROOT_DIR}/../fips-build" ABSOLUTE)
 endif(FIPS_ROOT)
 
 include(CMakeParseArguments)
@@ -48,6 +48,7 @@ option(FIPS_OSX_UNIVERSAL "Enable generation of universal binaries on OS X" OFF)
 option(FIPS_LINUX_MACH32 "Enable 32-bit code generation on 64-bit Linux host" OFF)
 option(FIPS_AUTO_IMPORT "Automatically include all modules from imports" ON)
 option(FIPS_CLANG_ADDRESS_SANITIZER "Enable clang address sanitizer" OFF)
+option(FIPS_CLANG_SAVE_OPTIMIZATION_RECORD "Enable clang -fsave-optimization-record option" OFF)
 
 # turn some dependent options on/off
 if (FIPS_UNITTESTS)
@@ -61,6 +62,11 @@ endif()
 #   at the start of the root CMakeLists.txt file.
 #
 macro(fips_setup)
+
+    # default settings
+    if (NOT CMAKE_CXX_STANDARD)
+        set(CMAKE_CXX_STANDARD 11)
+    endif()
 
     # check for optional main-project name, this is the preferred way to
     # define the project name, but we better be backward compatible
@@ -209,6 +215,7 @@ macro(fips_setup)
     # write empty YAML property tracking files
     fips_reset_targets_list()
     fips_reset_headerdirs_list()
+    fips_reset_defines_list()
 
     # initialize code generation
     fips_begin_gen()
@@ -216,6 +223,8 @@ macro(fips_setup)
     # load project-local fips-include.cmake if exists
     if (EXISTS "${FIPS_PROJECT_DIR}/fips-include.cmake")
         include("${FIPS_PROJECT_DIR}/fips-include.cmake")
+    elseif (EXISTS "${FIPS_PROJECT_DIR}/fips-files/include.cmake")
+        include("${FIPS_PROJECT_DIR}/fips-files/include.cmake")
     endif()
 
     # load generated .fips-imports.cmake if exists
@@ -283,7 +292,7 @@ macro(fips_end_module)
     # track some target propeties in YAML files
     fips_addto_targets_list(${CurTargetName} "module")
     fips_addto_headerdirs_list(${CurTargetName})
-
+    fips_addto_defines_list(${CurTargetName})
 endmacro()
 
 #-------------------------------------------------------------------------------
@@ -320,7 +329,7 @@ macro(fips_end_lib)
     # track some target propeties in YAML files
     fips_addto_targets_list(${CurTargetName} "lib")
     fips_addto_headerdirs_list(${CurTargetName})
-
+    fips_addto_defines_list(${CurTargetName})
 endmacro()
 
 #-------------------------------------------------------------------------------
@@ -358,7 +367,7 @@ macro(fips_end_app)
     # add executable target
     if (${CurAppType} STREQUAL "windowed")
         # a windowed application
-        if (FIPS_OSX OR FIPS_IOS)
+        if (FIPS_OSX)
             add_executable(${CurTargetName} MACOSX_BUNDLE ${CurSources})
             fips_osx_add_target_properties(${CurTargetName})
             fips_copy_osx_dylib_files(${CurTargetName} 1)
@@ -379,7 +388,7 @@ macro(fips_end_app)
         else()
             add_executable(${CurTargetName} ${CurSources})
         endif()
-        if (FIPS_OSX OR FIPS_IOS)
+        if (FIPS_OSX)
             fips_copy_osx_dylib_files(${CurTargetName} 0)
         endif()
     endif()
@@ -388,9 +397,11 @@ macro(fips_end_app)
     # set platform- and target-specific compiler options
     fips_vs_apply_options(${CurTargetName})
 
+    # FIPS_APP_WINDOWED or FIPS_APP_CMDLINE defines
+    fips_apply_executable_type_defines(${CurTargetName} ${CurAppType})
+
     # android specific stuff
     if (FIPS_ANDROID)
-        fips_android_create_project(${CurTargetName})
         fips_android_postbuildstep(${CurTargetName})
     endif()
 
@@ -413,6 +424,7 @@ macro(fips_end_app)
     # track some target propeties in YAML files
     fips_addto_targets_list(${CurTargetName} "app")
     fips_addto_headerdirs_list(${CurTargetName})
+    fips_addto_defines_list(${CurTargetName})
 endmacro()
 
 #-------------------------------------------------------------------------------
@@ -460,7 +472,7 @@ macro(fips_end_sharedlib)
     # track some target propeties in YAML files
     fips_addto_targets_list(${CurTargetName} "sharedlib")
     fips_addto_headerdirs_list(${CurTargetName})
-
+    fips_addto_defines_list(${CurTargetName})
 endmacro()
 
 #-------------------------------------------------------------------------------

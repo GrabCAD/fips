@@ -18,7 +18,7 @@ set(CMAKE_MACOSX_BUNDLE YES)
 set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "NO")
 
 set(CMAKE_SYSTEM_NAME Darwin)
-set(CMAKE_OSX_ARCHITECTURES "arm64")
+set(CMAKE_OSX_ARCHITECTURES "armv7 arm64")
 set(CMAKE_OSX_SYSROOT "iphoneos")
 set(CMAKE_XCODE_EFFECTIVE_PLATFORMS "-iphoneos;-iphonesimulator")
 
@@ -28,12 +28,23 @@ set(CMAKE_CONFIGURATION_TYPES Debug Release)
 # define standard frame works that are always linked
 set(FIPS_OSX_STANDARD_FRAMEWORKS Foundation UIKit)
 
+# globally silence the GLES depreciation warning
+add_definitions(-DGLES_SILENCE_DEPRECATION)
+
 # ARC on/off?
 option(FIPS_IOS_USE_ARC "Enable/disable Automatic Reference Counting" OFF)
 if (FIPS_IOS_USE_ARC)
     set(CMAKE_XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC "YES")
 else()
     set(CMAKE_XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC "NO")
+endif()
+
+# only build active arch?
+option(FIPS_IOS_ONLY_ACTIVE_ARCH "Only build active architecture" ON)
+if (FIPS_IOS_ONLY_ACTIVE_ARCH)
+    set(CMAKE_XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+else()
+    set(CMAKE_XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "NO")
 endif()
 
 # need to set some flags directly as Xcode attributes
@@ -55,11 +66,11 @@ else()
 endif()
 
 # compiler flags
-set(CMAKE_CXX_FLAGS "-fstrict-aliasing -Wno-multichar -Wall -Wextra -Wno-unused-parameter -Wno-unknown-pragmas -Wno-ignored-qualifiers -Wno-long-long -Wno-overloaded-virtual -Wno-unused-volatile-lvalue -Wno-deprecated-writable-strings")
+set(CMAKE_CXX_FLAGS "-fstrict-aliasing -Wno-multichar -Wall -Wextra -Wno-expansion-to-defined -Wno-unused-parameter -Wno-unknown-pragmas -Wno-ignored-qualifiers -Wno-long-long -Wno-overloaded-virtual -Wno-unused-volatile-lvalue -Wno-deprecated-writable-strings")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -D_DEBUG_ -D_DEBUG -DFIPS_DEBUG=1 -g")
 
-set(CMAKE_C_FLAGS "-fstrict-aliasing -Wno-multichar -Wall -Wextra -Wno-unused-parameter -Wno-unknown-pragmas -Wno-ignored-qualifiers -Wno-long-long -Wno-overloaded-virtual -Wno-unused-volatile-lvalue  -Wno-deprecated-writable-strings")
+set(CMAKE_C_FLAGS "-fstrict-aliasing -Wno-multichar -Wall -Wextra -Wno-expansion-to-defined -Wno-unused-parameter -Wno-unknown-pragmas -Wno-ignored-qualifiers -Wno-long-long -Wno-overloaded-virtual -Wno-unused-volatile-lvalue  -Wno-deprecated-writable-strings")
 set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
 set(CMAKE_C_FLAGS_DEBUG "-O0 -D_DEBUG_ -D_DEBUG -DFIPS_DEBUG=1 -g")
 

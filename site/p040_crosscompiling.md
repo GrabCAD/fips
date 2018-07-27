@@ -75,10 +75,7 @@ Cross-compiling to **PNaCl** is just as easy, just use a different config:
 {% endhighlight %}
 
 Same for **Android**, note that Android provides 3 types of config, one for each
-CPU type. 'Running' an Android will only deploy the application to the device,
-after that it must be started manually.
-
-> NOTE: './fips run' for Android is not implemented yet
+CPU type.
 
 {% highlight bash %}
 > ./fips build android-make-release
@@ -94,9 +91,19 @@ generate the Xcode project files, and then start Xcode:
 
 {% highlight bash %}
 > ./fips set config ios-xcode-debug
+> ./fips set iosteam XYZW123456
 > ./fips gen
 > ./fips open
 {% endhighlight %}
+
+Note the **./fips set iosteam XYZW123456** before the first call to **./fips gen**.
+This sets the _iOS Development Team ID_ for each target in the Xcode project,
+so you don't need to do this manually each time you generate the solution.
+The team id will be written to the local file _.fips-settings.yml_ in the project
+directory, so you only need to do this once before the first **./fips gen**.
+
+You can lookup your team id on the Apple Developer web site:
+https://developer.apple.com/account/#/membership
 
 Once in Xcode, the samples can be compiled and debugged either in the simulator
 or on a real device (provided Xcode is properly setup for iOS development).
@@ -120,7 +127,7 @@ Cross-compiling build settings are defined in cmake toolchain files in:
 
 Fips projects can override these standard toolchain files, or define
 completely new toolchain files, by creating
-a directory named 'fips-toolchains' in the project root directory, and
+a directory named 'fips-files/toolchains' in the project root directory, and
 placing cmake toolchain files there.
 
 Fips will search for toolchain files in the following order:

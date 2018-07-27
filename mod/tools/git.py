@@ -79,6 +79,19 @@ def commit(proj_dir, msg):
         log.error("'git commit' failed with '{}'".format(e.returncode))
 
 #-------------------------------------------------------------------------------
+def commit_allow_empty(proj_dir, msg):
+    """same as commit(), but uses the --allow-empty arg so that the
+    commit doesn't fail if there's nothing to commit.
+
+    :param proj_dir:    path to a git repo
+    """
+    check_exists_with_error()
+    try:
+        subprocess.check_call('git commit --allow-empty -m "{}"'.format(msg), cwd=proj_dir, shell=True)
+    except subprocess.CalledProcessError as e:
+        log.error("'git commit' failed with '{}'".format(e.returncode))
+
+#-------------------------------------------------------------------------------
 def push(proj_dir):
     """runs a 'git push' in the provided git repo
     
@@ -170,7 +183,7 @@ def checkout(proj_dir, revision) :
     :returns:           True if git returns successful
     """
     try :
-        output = subprocess.check_output('git checkout {}'.format(revision), cwd=proj_dir, shell=True)
+        output = subprocess.check_output('git checkout {}'.format(revision), cwd=proj_dir, shell=True).decode("utf-8")
         update_submodule(proj_dir)
         return output.split(':')[0] != 'error'
     except subprocess.CalledProcessError :
@@ -185,7 +198,7 @@ def has_uncommitted_files(proj_dir) :
     :returns:           True/False and output string
     """
     try :
-        output = subprocess.check_output('git status -s', cwd=proj_dir, shell=True)
+        output = subprocess.check_output('git status -s', cwd=proj_dir, shell=True).decode("utf-8")
         if len(output) > 0 :
             return True, output
         else :
@@ -204,7 +217,7 @@ def get_remote_rev(proj_dir, remote_branch) :
     """
     tokens = remote_branch.split('/')
     try :
-        output = subprocess.check_output('git ls-remote {} {}'.format(tokens[0], tokens[1]), cwd=proj_dir, shell=True)
+        output = subprocess.check_output('git ls-remote {} {}'.format(tokens[0], tokens[1]), cwd=proj_dir, shell=True).decode("utf-8")
         # can return an empty string if the remote branch doesn't exist
         if output != '':
             return output.split()[0]
@@ -223,7 +236,7 @@ def get_local_rev(proj_dir, local_branch) :
     :returns:               the revision string of the local branch head or None
     """
     try :
-        output = subprocess.check_output('git rev-parse {}'.format(local_branch), cwd=proj_dir, shell=True)
+        output = subprocess.check_output('git rev-parse {}'.format(local_branch), cwd=proj_dir, shell=True).decode("utf-8")
         return output.rstrip()
     except subprocess.CalledProcessError :
         log.error("failed to call 'git rev-parse'")

@@ -22,20 +22,6 @@ def list_build_tools() :
         log.info('{}'.format(tool))
 
 #-------------------------------------------------------------------------------
-def list_build_types() :
-    """list supported build types"""
-    log.colored(log.YELLOW, '=== build-types:')
-    for type in config.build_types :
-        log.info('{}'.format(type))
-
-#-------------------------------------------------------------------------------
-def list_generators() :
-    """list supported generatores"""
-    log.colored(log.YELLOW, '=== generators:')
-    for gen in config.generators :
-        log.info('{}'.format(gen))
-
-#-------------------------------------------------------------------------------
 def list_configs(fips_dir, proj_dir) :
     """list available configs"""
     log.colored(log.YELLOW, '=== configs:')
@@ -58,7 +44,7 @@ def list_settings(proj_dir) :
     """list settings file content"""
     log.colored(log.YELLOW, '=== settings:')
     if util.is_valid_project_dir(proj_dir) :
-        for key in ['config', 'target', 'jobs', 'ccache'] :
+        for key in ['config', 'target', 'jobs', 'ccache', 'iosteam'] :
             value = settings.get(proj_dir, key)
             if type(value) is bool :
                 value = 'on' if value else 'off'
@@ -176,12 +162,6 @@ def run(fips_dir, proj_dir, args) :
     if noun in ['all', 'build-tools'] :
         list_build_tools()
         ok = True
-    if noun in ['all', 'build-types'] :
-        list_build_types()
-        ok = True
-    if noun in ['all', 'generators'] :
-        list_generators()
-        ok = True
     if noun in ['all', 'registry'] :
         list_registry(fips_dir)
         ok = True
@@ -208,8 +188,6 @@ def help() :
              "fips list all\n"
              "fips list configs\n"
              "fips list build-tools\n"
-             "fips list build-types\n"
-             "fips list generators\n"
              "fips list registry\n"
              "fips list settings\n"
              "fips list targets [config]\n"

@@ -1,11 +1,6 @@
 '''VSCode helper functions'''
-import subprocess
-import os
-import yaml
-import json
-import inspect
-import tempfile
-from mod import util,log,verb
+import subprocess, os, yaml, json, inspect, tempfile, glob, shutil
+from mod import util,log,verb,dep
 from mod.tools import cmake
 
 name = 'vscode'
@@ -27,7 +22,8 @@ def check_exists(fips_dir) :
 #------------------------------------------------------------------------------
 def run(proj_dir):
     try:
-        subprocess.call('code .', cwd=proj_dir, shell=True)
+        proj_name = util.get_project_name_from_dir(proj_dir)
+        subprocess.call('code .vscode/{}.code-workspace'.format(proj_name), cwd=proj_dir, shell=True)
     except OSError:
         log.error("Failed to run Visual Studio Code as 'code'") 
 
@@ -51,16 +47,41 @@ def read_cmake_targets(fips_dir, proj_dir, cfg, types):
 #------------------------------------------------------------------------------
 def read_cmake_headerdirs(fips_dir, proj_dir, cfg):
     '''reads the fips_headerdirs.yml file which was created during
-    "fips gen" and returns a list of unique header search paths
+    "fips gen" and returns a list of unique include paths
     '''
     result = []
     success, dirs = util.get_cfg_headersdirs_by_target(fips_dir, proj_dir, cfg)
     if success:
-        for _,dirs in dirs.items():
-            result.extend(dirs)
+        for _,val in dirs.items():
+            result.extend(val)
     return set(result)
 
-#------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+def read_cmake_defines(fips_dir, proj_dir, cfg):
+    '''reads the fips_defines.yml file which was created during
+    "fips gen" and returns map of unique top-level defines.
+    '''
+    result = []
+    success, defs = util.get_cfg_defines_by_target(fips_dir, proj_dir, cfg)
+    if success:
+        log.info('     defines from cmake:')
+        for _,val in defs.items():
+            if val:
+                for define in val:
+                    if define not in result:
+                        result.append(define)
+                        log.info('       {}'.format(define))
+    if 'vscode_additional_defines' in cfg:
+        log.info('     defines from build config (vscode_additional_defines):')
+        for define in cfg['vscode_additional_defines']:
+            if define not in result:
+                result.append(define)
+                log.info('       {}'.format(define))
+    else:
+        log.info('     no additional defines from build config (vscode_additional_defines)')
+    return result
+
+#-------------------------------------------------------------------------------
 def problem_matcher():
     # FIXME: an actual compiler identification would be better here!
     if util.get_host_platform() == 'win':
@@ -81,20 +102,20 @@ def problem_matcher():
         }
 
 #-------------------------------------------------------------------------------
-def get_clang_header_paths():
-    '''runs "clang -E -xc++ -v dummy.cc" and extract the header search
+def get_cc_header_paths():
+    '''runs "cc -E -xc++ -v dummy.cc" and extract the header search
     path from stdout, return these as array of strings.
     '''
-    if util.get_host_platform() != 'osx':
+    if util.get_host_platform() not in ['osx','linux']:
         return []
     
     # write a dummy C source file
     tmp = tempfile.NamedTemporaryFile(delete=False)
-    tmp.write('int main() {return 0;}')
+    tmp.write(b'int main() {return 0;}')
     tmp.close()
 
     # run clang in preprocessor mode
-    outp = subprocess.check_output(['clang', '-E', '-xc++', '-v', tmp.name], stderr=subprocess.STDOUT)
+    outp = subprocess.check_output(['cc', '-E', '-xc++', '-v', tmp.name], stderr=subprocess.STDOUT).decode("utf-8")
 
     # delete the temp source file
     os.remove(tmp.name)
@@ -116,65 +137,85 @@ def get_clang_header_paths():
     return result
 
 #------------------------------------------------------------------------------
+def get_vs_header_paths(fips_dir, proj_dir, cfg):
+    '''hacky way to find the header search path in the latest installed
+    Windows 10 Kit and Visual Studio instance
+    '''
+    if util.get_host_platform() != 'win':
+        return []
+
+    # Windows system headers are in 2 locations, first find the latest Windows Kit
+    result = []
+    kits = glob.glob('C:/Program Files (x86)/Windows Kits/10/Include/*/')
+    if kits:
+        latest = max(kits).replace('\\','/')
+        subdirs = glob.glob(latest + '/*/')
+        for d in subdirs:
+            result.append(d.replace('\\','/'))
+
+    # next get the used active Visual Studio instance from the cmake cache
+    proj_name = util.get_project_name_from_dir(proj_dir)
+    build_dir = util.get_build_dir(fips_dir, proj_name, cfg['name'])
+    outp = subprocess.check_output(['cmake', '-LA', '.'], cwd=build_dir).decode("utf-8")
+    for line in outp.splitlines():
+        if line.startswith('CMAKE_LINKER:FILEPATH='):
+            bin_index = line.find('/bin/')
+            if bin_index > 0:
+                result.append(line[22:bin_index+1]+'include')
+    return result
+
+#------------------------------------------------------------------------------
 def list_extensions() :
     '''queries Visual Studio Code for installed extensions
     :returns:   list of extensions
     '''
     try:
-        outp = subprocess.check_output('code --list-extensions', shell=True)
+        outp = subprocess.check_output('code --list-extensions', shell=True).decode("utf-8")
         return outp.splitlines()
     except (OSError, subprocess.CalledProcessError):
         return []
 
 #-------------------------------------------------------------------------------
-def write_workspace_settings(fips_dir, proj_dir, cfg):
-    '''write the VSCode launch.json, tasks.json and
-    c_cpp_properties.json files from cmake output files
-    '''
-    proj_name = util.get_project_name_from_dir(proj_dir)
-    deploy_dir = util.get_deploy_dir(fips_dir, proj_name, cfg)
-    build_dir = util.get_build_dir(fips_dir, proj_name, cfg)
-    vscode_dir = proj_dir + '/.vscode'
-    if not os.path.isdir(vscode_dir):
-        os.makedirs(vscode_dir)
-    exe_targets = read_cmake_targets(fips_dir, proj_dir, cfg, ['app'])
+def write_tasks_json(fips_dir, proj_dir, vscode_dir, cfg):
+    '''write the .vscode/tasks.json file'''
     all_targets = read_cmake_targets(fips_dir, proj_dir, cfg, None)
-    inc_paths = read_cmake_headerdirs(fips_dir, proj_dir, cfg)
-
-    vscode_extensions = list_extensions()
-    has_cmake_tools = any('vector-of-bool.cmake-tools' in ext for ext in vscode_extensions)
-
-    if util.get_host_platform() == 'win':
-        fips_cmd = 'fips'
-    else:
-        fips_cmd = './fips'
-
-    # write a tasks.json file
     tasks = {
-        'version':  '0.1.0',
-        'command':  fips_cmd,
-        'isShellCommand':   True,
-        'showOutput': 'silent',
-        'suppressTaskName': True,
-        'echoCommand': True,
+        'version': '2.0.0',
+        'type': 'shell',
+        'presentation': {
+            'reveal': 'always'
+        },
         'tasks': []
     }
+    # write the actual tasks
     for tgt in all_targets:
         tasks['tasks'].append({
-            'taskName': tgt,
-            'args': ['make', tgt],
-            'problemMatcher': problem_matcher(),
+            'label': tgt,
+            'command': 'python fips make {}'.format(tgt),
+            'group': 'build',
+            'problemMatcher': [ problem_matcher() ],
         })
     tasks['tasks'].append({
-        'isBuildCommand': True,
-        'taskName': 'ALL',
-        'args': ['build'],
-        'problemMatcher': problem_matcher()
+        'label': 'ALL',
+        'command': 'python fips build',
+        'group': {
+            'kind': 'build',
+            'isDefault': True
+        },
+        'problemMatcher': [ problem_matcher() ],
     })
-    with open(vscode_dir + '/tasks.json', 'w') as f:
+    task_path = vscode_dir + '/tasks.json'
+    with open(task_path, 'w') as f:
         json.dump(tasks, f, indent=1, separators=(',',':'))
 
-    # write a launch.json with 1 config per build target
+#-------------------------------------------------------------------------------
+def write_launch_json(fips_dir, proj_dir, vscode_dir, cfg):
+    '''write the .vscode/launch.json file'''
+    proj_name = util.get_project_name_from_dir(proj_dir)
+    exe_targets = read_cmake_targets(fips_dir, proj_dir, cfg, ['app'])
+    deploy_dir = util.get_deploy_dir(fips_dir, proj_name, cfg['name'])
+    build_dir = util.get_build_dir(fips_dir, proj_name, cfg['name'])
+
     launch = {
         'version': '0.2.0',
         'configurations': []
@@ -234,7 +275,7 @@ def write_workspace_settings(fips_dir, proj_dir, cfg):
         'request': 'launch',
         'stopOnEntry': True,
         'pythonPath': '${config:python.pythonPath}',
-        'program': proj_dir + '/.fips-gen.py',
+        'program': build_dir + '/fips-gen.py',
         'args': [ build_dir + '/fips_codegen.yml' ],
         "cwd": proj_dir,
         "debugOptions": [
@@ -265,51 +306,175 @@ def write_workspace_settings(fips_dir, proj_dir, cfg):
                 ]
             }
             launch['configurations'].append(c)
-
-    with open(vscode_dir + '/launch.json', 'w') as f:
+    launch_path = vscode_dir + '/launch.json'
+    log.info('  writing {}'.format(launch_path))
+    with open(launch_path, 'w') as f:
         json.dump(launch, f, indent=1, separators=(',',':'))
 
-    # write a c_cpp_properties.json file with header-search paths
-    if not has_cmake_tools:
-        props = {
-            'configurations': []
-        }
-        for config_name in ['Mac','Linux','Win32']:
-            c = {
-                'name': config_name,
-                'browse': {
-                    'limitSymbolsToIncludeHeaders': True,
-                    'databaseFilename': '{}/browse.VS.code'.format(build_dir)
-                }
+#-------------------------------------------------------------------------------
+def write_c_cpp_properties_json(fips_dir, proj_dir, impex, cfg):
+    '''write the .vscode/c_cpp_properties.json files for main project
+       and all dependent projects
+    '''
+    proj_name = util.get_project_name_from_dir(proj_dir)
+    build_dir = util.get_build_dir(fips_dir, proj_name, cfg['name'])
+    defines = read_cmake_defines(fips_dir, proj_dir, cfg)
+    compile_commands_path = build_dir + '/compile_commands.json'
+    has_compile_command_json = os.path.isfile(compile_commands_path)
+    inc_paths = None
+    if not has_compile_command_json:
+        inc_paths = read_cmake_headerdirs(fips_dir, proj_dir, cfg)
+    props = {
+        'configurations': [],
+        'version': 3
+    }
+    for config_name in ['Mac','Linux','Win32']:
+        c = {
+            'name': config_name,
+            'browse': {
+                'limitSymbolsToIncludeHeaders': True,
+                'databaseFilename': '{}/browse.VS.code'.format(build_dir)
             }
-            config_incl_paths = []
-            if config_name == 'Mac':
-                config_incl_paths = get_clang_header_paths()
-            elif config_name == 'Linux':
-                config_incl_paths = [
-                    '/usr/include',
-                    '/usr/local/include'
-                ]
-            else:
-                config_incl_paths = [
-                    # FIXME
-                    'C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/include/*'
-                ]
-            for inc_path in inc_paths:
-                config_incl_paths.append(inc_path)
+        }
+        config_incl_paths = None
+        compiler_path = None
+        intellisense_mode = 'clang-x64'
+        if config_name == 'Mac':
+            if not has_compile_command_json:
+                config_incl_paths = get_cc_header_paths()
+            config_defines = ['_DEBUG','__GNUC__','__APPLE__','__clang__']
+            compiler_path = '/usr/bin/c++'
+        elif config_name == 'Linux':
+            if not has_compile_command_json:
+                config_incl_paths = get_cc_header_paths()
+            config_defines = ['_DEBUG','__GNUC__']
+            compiler_path = '/usr/bin/c++'
+        else:
+            if not has_compile_command_json:
+                config_incl_paths = get_vs_header_paths(fips_dir, proj_dir, cfg)
+            intellisense_mode = 'msvc-x64'
+            config_defines = ['_DEBUG','_WIN32']
+        if inc_paths:
+            config_incl_paths.extend(inc_paths)
+        config_defines.extend(defines)
+        
+        if compiler_path:
+            c['compilerPath'] = compiler_path
+        if has_compile_command_json:
+            c['compileCommands'] = compile_commands_path
+        if config_incl_paths:
             c['includePath'] = config_incl_paths
+        c['defines'] = config_defines
+        if config_incl_paths:
             c['browse']['path'] = config_incl_paths
-            props['configurations'].append(c)
-        with open(vscode_dir + '/c_cpp_properties.json', 'w') as f:
+        c['intelliSenseMode'] = intellisense_mode
+        props['configurations'].append(c)
+    
+    # add dependencies in reverse order, so that main project is first
+    for dep_proj_name in reversed(impex):
+        dep_proj_dir = util.get_project_dir(fips_dir, dep_proj_name)
+        vscode_dir = dep_proj_dir + '/.vscode'
+        if not os.path.isdir(vscode_dir):
+            os.makedirs(vscode_dir)
+        prop_path = vscode_dir + '/c_cpp_properties.json'
+        log.info('  writing {}'.format(prop_path))
+        with open(prop_path, 'w') as f:
             json.dump(props, f, indent=1, separators=(',',':'))
 
-    # write a settings.json for CMakeTools plugin settings
-    if has_cmake_tools:
-        settings = {
-            'cmake.buildDirectory': build_dir,
-            'cmake.configureSettings': {
-                'FIPS_CONFIG:': cfg['name']
-            }
+#-------------------------------------------------------------------------------
+def write_cmake_tools_settings(fips_dir, proj_dir, vscode_dir, cfg):
+    '''write a settings.json for CMakeTools plugin settings'''
+    proj_name = util.get_project_name_from_dir(proj_dir)
+    build_dir = util.get_build_dir(fips_dir, proj_name, cfg['name'])
+    settings = {
+        'cmake.buildDirectory': build_dir,
+        'cmake.configureSettings': {
+            'FIPS_CONFIG:': cfg['name']
         }
-        with open(vscode_dir + '/settings.json', 'w') as f:
-            json.dump(settings, f, indent=1, separators=(',',':'))
+    }
+    settings_path = vscode_dir + '/settings.json' 
+    log.info('  writing {}'.format(settings_path))
+    with open(settings_path, 'w') as f:
+        json.dump(settings, f, indent=1, separators=(',',':'))
+
+#-------------------------------------------------------------------------------
+def write_code_workspace_file(fips_dir, proj_dir, impex, cfg):
+    '''write a multiroot-workspace config file'''
+    vscode_dir = proj_dir + '/.vscode'
+    ws = {
+        'folders': [],
+        'settings': {}
+    }
+    # add dependencies in reverse order, so that main project is first
+    for dep_proj_name in reversed(impex):
+        dep_proj_dir = util.get_project_dir(fips_dir, dep_proj_name)
+        ws['folders'].append({ 'path': dep_proj_dir })
+    proj_name = util.get_project_name_from_dir(proj_dir)
+    ws_path = '{}/{}.code-workspace'.format(vscode_dir, proj_name) 
+    log.info('  writing {}'.format(ws_path))
+    with open(ws_path, 'w') as f:
+        json.dump(ws, f, indent=1, separators=(',',':'))
+
+#-------------------------------------------------------------------------------
+def remove_vscode_tasks_launch_files(fips_dir, proj_dir, impex, cfg):
+    '''walks through the dependencies, and deletes the .vscode/tasks.json
+    and .vscode/launch.json files
+    '''
+    for dep_proj_name in reversed(impex):
+        dep_proj_dir = util.get_project_dir(fips_dir, dep_proj_name)
+        tasks_path = dep_proj_dir + '/.vscode/tasks.json'
+        launch_path = dep_proj_dir + '/.vscode/launch.json'
+        if os.path.exists(tasks_path):
+            log.info('  deleting {}'.format(tasks_path))
+            os.remove(tasks_path)
+        if os.path.exists(launch_path):
+            log.info('  deleting {}'.format(launch_path))
+            os.remove(launch_path)
+
+#-------------------------------------------------------------------------------
+def write_workspace_settings(fips_dir, proj_dir, cfg):
+    '''write the VSCode launch.json, tasks.json and
+    c_cpp_properties.json files from cmake output files
+    '''
+    log.info("=== writing Visual Studio Code config files...")
+    vscode_dir = proj_dir + '/.vscode'
+    if not os.path.isdir(vscode_dir):
+        os.makedirs(vscode_dir)
+    # fetch all project dependencies
+    success, impex = dep.get_all_imports_exports(fips_dir, proj_dir)
+    if not success :
+        log.warn("missing import project directories, please run 'fips fetch'")
+    vscode_extensions = list_extensions()
+    has_cmake_tools = any(b'vector-of-bool.cmake-tools' in ext for ext in vscode_extensions)
+    remove_vscode_tasks_launch_files(fips_dir, proj_dir, impex, cfg)
+    write_tasks_json(fips_dir, proj_dir, vscode_dir, cfg)
+    write_launch_json(fips_dir, proj_dir, vscode_dir, cfg)
+    if has_cmake_tools:
+        write_cmake_tools_settings(fips_dir, proj_dir, vscode_dir, cfg)
+    else:
+        write_c_cpp_properties_json(fips_dir, proj_dir, impex, cfg)
+    write_code_workspace_file(fips_dir, proj_dir, impex, cfg)
+
+#-------------------------------------------------------------------------------
+def cleanup(fips_dir, proj_dir):
+    '''goes through all dependencies and deletes the .vscode directory'''
+    # fetch all project dependencies
+    success, impex = dep.get_all_imports_exports(fips_dir, proj_dir)
+    if not success :
+        log.warn("missing import project directories, please run 'fips fetch'")
+    log.info(log.RED + 'Please confirm to delete the following directories:' + log.DEF)
+    for dep_proj_name in reversed(impex):
+        dep_proj_dir = util.get_project_dir(fips_dir, dep_proj_name)
+        vscode_dir = dep_proj_dir + '/.vscode/'
+        if os.path.isdir(vscode_dir):
+            log.info('  {}'.format(vscode_dir))
+    if util.confirm(log.RED + 'Delete those directories?' + log.DEF):
+        for dep_proj_name in reversed(impex):
+            dep_proj_dir = util.get_project_dir(fips_dir, dep_proj_name)
+            vscode_dir = dep_proj_dir + '/.vscode/'
+            if os.path.isdir(vscode_dir):
+                log.info('  deleting {}'.format(vscode_dir))
+                shutil.rmtree(vscode_dir)
+        log.info('Done.')
+    else:
+        log.info('Nothing deleted, done.')

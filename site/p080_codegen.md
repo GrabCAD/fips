@@ -110,13 +110,13 @@ fips_generate(FROM fs_metaballs.sc
 A _generator_ is a Python script which is called to generate C/C++ files.
 
 Fips doesn't come with its own generators, instead it looks in the 
-**fips-generators** directory in the current project and imported projects
+**fips-files/generators** directory in the current project and imported projects
 for generator scripts.
 
 Let's check what generators Oryol has to offer:
 
 {% highlight bash %}
-> cd oryol/fips-generators
+> cd oryol/fips-files/generators
 > ls *.py
 MessageProtocol.py Shader.py          SoundSheet.py      SpriteSheet.py
 {% endhighlight %}
@@ -144,6 +144,32 @@ _SOURCE_ cmake argument to fips_generate())
 _HEADER_ cmake argument to fips_generate())
 * **args**: if present, this is a dictionary of key/value pairs defined in the
 _ARGS_ cmake argument to fips_generate()
+
+### Target Platform Detection
+
+Sometimes you'll need to do things differently when cross-compiling to 
+specific target platforms. Use the _getutil.getEnv()_ method with the
+key _target\_platform_ to check the target platform, for instance to check
+for iOS:
+
+{% highlight python %}
+import genutil
+
+def only_on_ios():
+    if genutil.getEnv('target_platform') == 'ios':
+        # building for iOS...
+{% endhighlight %}
+
+The valid target platform names are the same as in the cmake variable
+_FIPS\_PLATFORM\_NAME_:
+
+- ios
+- osx
+- android
+- linux
+- linuxraspbian
+- win64
+- win32
 
 ### File Dirty Check
 

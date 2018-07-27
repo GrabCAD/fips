@@ -26,7 +26,7 @@ def init(fips_dir, proj_name) :
         for f in ['CMakeLists.txt', 'fips', 'fips.cmd', 'fips.yml'] :
             template.copy_template_file(fips_dir, proj_dir, f, templ_values)
         os.chmod(proj_dir + '/fips', 0o744)
-        gitignore_entries = ['.fips-*', '*.pyc']
+        gitignore_entries = ['.fips-*', '*.pyc', '.vscode/']
         template.write_git_ignore(proj_dir, gitignore_entries)
     else :
         log.error("project dir '{}' does not exist".format(proj_dir))
@@ -62,18 +62,26 @@ def gen_project(fips_dir, proj_dir, cfg, force) :
     """private: generate build files for one config"""
 
     proj_name = util.get_project_name_from_dir(proj_dir)
-    build_dir = util.get_build_dir(fips_dir, proj_name, cfg)
+    build_dir = util.get_build_dir(fips_dir, proj_name, cfg['name'])
     defines = {}
     defines['FIPS_USE_CCACHE'] = 'ON' if settings.get(proj_dir, 'ccache') else 'OFF'
     defines['FIPS_AUTO_IMPORT'] = 'OFF' if dep.get_policy(proj_dir, 'no_auto_import') else 'ON'
+    if cfg['build_tool'] == 'vscode_cmake':
+        defines['CMAKE_EXPORT_COMPILE_COMMANDS'] = 'ON'
+    if cfg['platform'] == 'ios':
+        ios_team_id = settings.get(proj_dir, 'iosteam')
+        if ios_team_id:
+            defines['FIPS_IOS_TEAMID'] = ios_team_id
     do_it = force
     if not os.path.isdir(build_dir) :
         os.makedirs(build_dir)
+    if not os.path.isfile(build_dir + '/CMakeCache.txt'):
         do_it = True
     if do_it :
         # if Ninja build tool and on Windows, need to copy 
         # the precompiled ninja.exe to the build dir
         log.colored(log.YELLOW, "=== generating: {}".format(cfg['name']))
+        log.info("config file: {}".format(cfg['path']))
         toolchain_path = config.get_toolchain(fips_dir, proj_dir, cfg)
         if toolchain_path :
             log.info("Using Toolchain File: {}".format(toolchain_path))
@@ -100,7 +108,7 @@ def gen(fips_dir, proj_dir, cfg_name) :
     dep.fetch_imports(fips_dir, proj_dir)
     proj_name = util.get_project_name_from_dir(proj_dir)
     util.ensure_valid_project_dir(proj_dir)
-    dep.gather_and_write_imports(fips_dir, proj_dir)
+    dep.gather_and_write_imports(fips_dir, proj_dir, cfg_name)
 
     # load the config(s)
     configs = config.load(fips_dir, proj_dir, cfg_name)
@@ -138,7 +146,7 @@ def configure(fips_dir, proj_dir, cfg_name) :
     dep.fetch_imports(fips_dir, proj_dir)
     proj_name = util.get_project_name_from_dir(proj_dir)
     util.ensure_valid_project_dir(proj_dir)
-    dep.gather_and_write_imports(fips_dir, proj_dir)
+    dep.gather_and_write_imports(fips_dir, proj_dir, cfg_name)
 
     # load configs, if more then one, only use first one
     configs = config.load(fips_dir, proj_dir, cfg_name)
@@ -151,7 +159,7 @@ def configure(fips_dir, proj_dir, cfg_name) :
             log.error("Failed to generate '{}' of project '{}'".format(cfg['name'], proj_name))
 
         # run ccmake or cmake-gui
-        build_dir = util.get_build_dir(fips_dir, proj_name, cfg)
+        build_dir = util.get_build_dir(fips_dir, proj_name, cfg['name'])
         if ccmake.check_exists(fips_dir) :
             ccmake.run(build_dir)
         elif cmake_gui.check_exists(fips_dir) :
@@ -179,7 +187,7 @@ def make_clean(fips_dir, proj_dir, cfg_name) :
             if config_valid :
                 log.colored(log.YELLOW, "=== cleaning: {}".format(cfg['name']))
 
-                build_dir = util.get_build_dir(fips_dir, proj_name, cfg)
+                build_dir = util.get_build_dir(fips_dir, proj_name, cfg['name'])
                 result = False
                 if cfg['build_tool'] == make.name :
                     result = make.run_clean(fips_dir, build_dir)
@@ -221,7 +229,7 @@ def build(fips_dir, proj_dir, cfg_name, target=None) :
     dep.fetch_imports(fips_dir, proj_dir)
     proj_name = util.get_project_name_from_dir(proj_dir)
     util.ensure_valid_project_dir(proj_dir)
-    dep.gather_and_write_imports(fips_dir, proj_dir)
+    dep.gather_and_write_imports(fips_dir, proj_dir, cfg_name)
 
     # load the config(s)
     configs = config.load(fips_dir, proj_dir, cfg_name)
@@ -237,7 +245,7 @@ def build(fips_dir, proj_dir, cfg_name, target=None) :
                     log.error("Failed to generate '{}' of project '{}'".format(cfg['name'], proj_name))
 
                 # select and run build tool
-                build_dir = util.get_build_dir(fips_dir, proj_name, cfg)
+                build_dir = util.get_build_dir(fips_dir, proj_name, cfg['name'])
                 num_jobs = settings.get(proj_dir, 'jobs')
                 result = False
                 if cfg['build_tool'] == make.name :
@@ -247,8 +255,8 @@ def build(fips_dir, proj_dir, cfg_name, target=None) :
                 elif cfg['build_tool'] == xcodebuild.name :
                     result = xcodebuild.run_build(fips_dir, target, cfg['build_type'], build_dir, num_jobs)
                 else :
-                    result = cmake.run_build(fips_dir, target, cfg['build_type'], build_dir)
-                
+                    result = cmake.run_build(fips_dir, target, cfg['build_type'], build_dir, num_jobs)
+
                 if result :
                     num_valid_configs += 1
                 else :
@@ -288,7 +296,7 @@ def run(fips_dir, proj_dir, cfg_name, target_name, target_args, target_cwd) :
             log.colored(log.YELLOW, "=== run '{}' (config: {}, project: {}):".format(target_name, cfg['name'], proj_name))
 
             # find deploy dir where executables live
-            deploy_dir = util.get_deploy_dir(fips_dir, proj_name, cfg)
+            deploy_dir = util.get_deploy_dir(fips_dir, proj_name, cfg['name'])
             if not target_cwd :
                 target_cwd = deploy_dir
 
@@ -324,10 +332,10 @@ def run(fips_dir, proj_dir, cfg_name, target_name, target_args, target_cwd) :
                 try :
                     adb_path = android.get_adb_path(fips_dir)
                     # Android: first install the apk...
-                    cmd = '{} install -r {}/{}-debug.apk'.format(adb_path, deploy_dir, target_name)
+                    cmd = '{} install -r {}/{}.apk'.format(adb_path, deploy_dir, target_name)
                     subprocess.call(cmd, shell=True)
                     # ...then start the apk
-                    cmd = '{} shell am start -n com.fips.{}/android.app.NativeActivity'.format(adb_path, target_name)
+                    cmd = '{} shell am start -n org.fips.{}/android.app.NativeActivity'.format(adb_path, target_name)
                     subprocess.call(cmd, shell=True)
                     # ...then run adb logcat
                     cmd = '{} logcat'.format(adb_path)
@@ -364,18 +372,26 @@ def clean(fips_dir, proj_dir, cfg_name) :
     proj_name = util.get_project_name_from_dir(proj_dir)
     configs = config.load(fips_dir, proj_dir, cfg_name)
     if configs :
+        num_cleaned_configs = 0
         for cfg in configs :
-            log.colored(log.YELLOW, "=== clean: {}".format(cfg['name']))
+            build_dir = util.get_build_dir(fips_dir, proj_name, cfg['name'])
+            build_dir_exists = os.path.isdir(build_dir)
+            deploy_dir = util.get_deploy_dir(fips_dir, proj_name, cfg['name'])
+            deploy_dir_exists = os.path.isdir(deploy_dir)
 
-            build_dir = util.get_build_dir(fips_dir, proj_name, cfg)
-            if os.path.isdir(build_dir) :
+            if build_dir_exists or deploy_dir_exists :
+                log.colored(log.YELLOW, "=== clean: {}".format(cfg['name']))
+                num_cleaned_configs += 1
+
+            if build_dir_exists :
                 shutil.rmtree(build_dir)
                 log.info("  deleted '{}'".format(build_dir))
 
-            deploy_dir = util.get_deploy_dir(fips_dir, proj_name, cfg)
-            if os.path.isdir(deploy_dir) :
+            if deploy_dir_exists :
                 shutil.rmtree(deploy_dir)
                 log.info("  deleted '{}'".format(deploy_dir))
+        if num_cleaned_configs == 0 :
+            log.colored(log.YELLOW, "=== clean: nothing to clean for {}".format(cfg_name))
     else :
         log.error("No valid configs found for '{}'".format(cfg_name))
 

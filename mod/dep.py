@@ -42,6 +42,8 @@ def get_imports(fips_dir, proj_dir) :
                 for dep in imports :
                     if not 'branch' in imports[dep] :
                         imports[dep]['branch'] = 'master'
+                    if not 'cond' in imports[dep] :
+                        imports[dep]['cond'] = None
                     if not 'git' in imports[dep] :
                         log.error("no git URL in import '{}' in '{}/fips.yml'!\n".format(dep, proj_dir))
             else :
@@ -116,6 +118,7 @@ def _rec_get_all_imports_exports(fips_dir, proj_dir, result) :
                 name:
                     git:    [git-url]
                     branch: [optional: branch or tag]
+                    cond:   [optional: cmake-if condition string conditionally including the dependency]
                 name:
                     ...
                 ...
@@ -142,6 +145,7 @@ def _rec_get_all_imports_exports(fips_dir, proj_dir, result) :
                     return success, result
 
         result[proj_name] = {}
+        result[proj_name]['proj_dir'] = proj_dir
         result[proj_name]['imports'] = imports 
         result[proj_name]['exports'] = exports 
 
@@ -256,10 +260,12 @@ def gather_imports(fips_dir, proj_dir) :
                 imported[imp_proj_name]['hdrdirs'] = []
                 imported[imp_proj_name]['libdirs'] = []
                 imported[imp_proj_name]['defines'] = {}
+                imported[imp_proj_name]['cond'] = imports[imp_proj_name]['cond']
 
                 # add header search paths
                 for imp_hdr in deps[imp_proj_name]['exports']['header-dirs'] :
                     hdr_path = '{}/{}/{}'.format(ws_dir, imp_proj_name, imp_hdr)
+                    hdr_path = os.path.normpath(hdr_path).replace('\\', '/')
                     if not os.path.isdir(hdr_path) :
                         log.warn("header search path '{}' not found in project '{}'".format(hdr_path, imp_proj_name))
                     imported[imp_proj_name]['hdrdirs'].append(hdr_path)
@@ -267,6 +273,7 @@ def gather_imports(fips_dir, proj_dir) :
                 # add lib search paths
                 for imp_lib in deps[imp_proj_name]['exports']['lib-dirs'] :
                     lib_path = '{}/{}/{}'.format(ws_dir, imp_proj_name, imp_lib)
+                    lib_path = os.path.normpath(lib_path).replace('\\', '/')
                     if not os.path.isdir(lib_path) :
                         log.warn("lib search path '{}' not found in project '{}'".format(lib_path, imp_proj_name))
                     imported[imp_proj_name]['libdirs'].append(lib_path)
@@ -302,8 +309,8 @@ def gather_imports(fips_dir, proj_dir) :
         return None
 
 #-------------------------------------------------------------------------------
-def write_imports(fips_dir, proj_dir, imported) :
-    """write the big imports directory created with 'gather_imports'
+def write_imports(fips_dir, proj_dir, cfg_name, imported) :
+    """write the big imports map created with 'gather_imports'
     to a .fips-imports.cmake file in the current project
 
     :params fips_dir:   absolute path to fips
@@ -328,11 +335,16 @@ def write_imports(fips_dir, proj_dir, imported) :
             
             for imp_proj_name in imported :
                 imp_proj_dir = util.get_project_dir(fips_dir, imp_proj_name)
+                
+                if imported[imp_proj_name]['cond']:
+                    f.write('if ({})\n'.format(imported[imp_proj_name]['cond']))
 
                 # add include and lib search paths
                 if imp_proj_dir != proj_dir :
                     f.write('if (EXISTS "{}/fips-include.cmake")\n'.format(imp_proj_dir))
                     f.write('    include("{}/fips-include.cmake")\n'.format(imp_proj_dir))
+                    f.write('elseif (EXISTS "{}/fips-files/include.cmake")\n'.format(imp_proj_dir))
+                    f.write('    include ("{}/fips-files/include.cmake")\n'.format(imp_proj_dir))
                     f.write('endif()\n')
                     f.write('if (EXISTS "{}/lib/${{FIPS_PLATFORM_NAME}}")\n'.format(imp_proj_dir))
                     f.write('    link_directories("{}/lib/${{FIPS_PLATFORM_NAME}}")\n'.format(imp_proj_dir))
@@ -384,6 +396,9 @@ def write_imports(fips_dir, proj_dir, imported) :
                         f.write('    {}()\n'.format(import_func))
                     f.write('    fips_ide_group("")\n')
                     f.write('endif()\n')
+                
+                if imported[imp_proj_name]['cond']:
+                    f.write('endif()\n')
 
         # check content of old and new file, only replace if changed
         imports_dirty = True
@@ -399,20 +414,25 @@ def write_imports(fips_dir, proj_dir, imported) :
 
     # write the .fips-imports.py file (copy from template)
     gen_search_paths  = '"{}","{}/generators",\n'.format(fips_dir, fips_dir)
-    if os.path.isdir("{}/fips-generators".format(proj_dir)) :
-        gen_search_paths += '"{}","{}/fips-generators",\n'.format(proj_dir, proj_dir)
+    proj_gen_dir = util.get_generators_dir(proj_dir)
+    if proj_gen_dir:
+        gen_search_paths += '"{}","{}",\n'.format(proj_dir, proj_gen_dir)
     for imp_proj_name in imported :
-        gen_dir = util.get_project_dir(fips_dir, imp_proj_name) + '/fips-generators'
-        if os.path.isdir(gen_dir) :
+        gen_dir = util.get_generators_dir(util.get_project_dir(fips_dir, imp_proj_name))
+        if gen_dir:
             gen_search_paths += '"' + gen_dir + '",\n' 
-    template.copy_template_file(fips_dir, proj_dir, '.fips-gen.py', { 'genpaths': gen_search_paths}, True)
+    proj_name = util.get_project_name_from_dir(proj_dir)
+    build_dir = util.get_build_dir(fips_dir, proj_name, cfg_name); 
+    if not os.path.isdir(build_dir):
+        os.makedirs(build_dir)
+    template.copy_template_file(fips_dir, build_dir, 'fips-gen.py', { 'genpaths': gen_search_paths}, True)
 
 #-------------------------------------------------------------------------------
-def gather_and_write_imports(fips_dir, proj_dir) :
+def gather_and_write_imports(fips_dir, proj_dir, cfg_name) :
     """first does and gather_imports, then a write_imports with the result"""
     imports = gather_imports(fips_dir, proj_dir)
     if imports is not None :
-        write_imports(fips_dir, proj_dir, imports)
+        write_imports(fips_dir, proj_dir, cfg_name, imports)
     else :
         log.error("project imports are incomplete, please run 'fips fetch'")
 
@@ -429,17 +449,20 @@ def check_imports(fips_dir, proj_dir) :
     success, imported_projects = get_all_imports_exports(fips_dir, proj_dir)
     num_imports = 0
     for imp_proj_name in imported_projects :
-        imp_proj_dir = util.get_project_dir(fips_dir, imp_proj_name)
+        imp_proj_dir = imported_projects[imp_proj_name]['proj_dir']
 
         # don't git-check the top-level project directory
         if imp_proj_dir != proj_dir :
             num_imports += 1
             log.info("git status of '{}':".format(imp_proj_name))
             if os.path.isdir(imp_proj_dir) :
-                if git.check_out_of_sync(imp_proj_dir) :
-                    log.warn("  '{}' is out of sync with remote git repo".format(imp_proj_dir))
+                if os.path.isdir("{}/.git".format(imp_proj_dir)) :
+                    if git.check_out_of_sync(imp_proj_dir) :
+                        log.warn("  '{}' is out of sync with remote git repo".format(imp_proj_dir))
+                    else :
+                        log.colored(log.GREEN, '  uptodate')
                 else :
-                    log.colored(log.GREEN, '  uptodate')
+                    log.colored(log.GREEN, "  '{}' is not a git repository".format(imp_proj_dir))
             else :
                 log.warn("  '{}' does not exist, please run 'fips fetch'".format(imp_proj_dir))
     if success and num_imports == 0 :
@@ -460,7 +483,7 @@ def check_local_changes(fips_dir, proj_dir) :
     success, imported_projects = get_all_imports_exports(fips_dir, proj_dir)
     num_imports = 0
     for imp_proj_name in imported_projects :
-        imp_proj_dir = util.get_project_dir(fips_dir, imp_proj_name)
+        imp_proj_dir = imported_projects[imp_proj_name]['proj_dir']
 
         # don't git-check the top-level project directory
         if imp_proj_dir != proj_dir :

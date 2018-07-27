@@ -4,7 +4,7 @@ import subprocess
 name = 'java'
 platforms = ['osx', 'linux', 'win']
 optional = True
-not_found = "required for Android, on OSX run 'brew cask install java'"
+not_found = "required for Android development, installed with the Java JDK"
 
 #------------------------------------------------------------------------------
 def check_exists(fips_dir) :
@@ -13,6 +13,4 @@ def check_exists(fips_dir) :
         return True
     except (OSError, subprocess.CalledProcessError) :
         return False
-
-
 

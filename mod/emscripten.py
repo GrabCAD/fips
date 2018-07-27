@@ -1,9 +1,14 @@
 """emscripten SDK support"""
 
 import os
-import urllib
+import sys
 import zipfile
 import subprocess
+
+if sys.version_info > (3, 0):
+    import urllib.request as urllib
+else:
+    import urllib
 
 from mod import log, util
 
@@ -80,11 +85,11 @@ def finish(sdk_dir) :
     if util.get_host_platform() == 'win' :
         # on Windows use a stable SDK version which doesn't require clang to be compiled
         subprocess.call(args='emsdk.bat update', cwd=sdk_dir, shell=True)
-        subprocess.call(args='emsdk.bat install {}'.format(get_sdk_version()), cwd=sdk_dir, shell=True)
+        subprocess.call(args='emsdk.bat install --shallow --disable-assertions {}'.format(get_sdk_version()), cwd=sdk_dir, shell=True)
         subprocess.call(args='emsdk.bat activate --embedded {}'.format(get_sdk_version()), cwd=sdk_dir, shell=True)
     else :
         subprocess.call(args='./emsdk update', cwd=sdk_dir, shell=True)
-        subprocess.call(args='./emsdk install {}'.format(get_sdk_version()), cwd=sdk_dir, shell=True)
+        subprocess.call(args='./emsdk install --shallow --disable-assertions {}'.format(get_sdk_version()), cwd=sdk_dir, shell=True)
         subprocess.call(args='./emsdk activate --embedded {}'.format(get_sdk_version()), cwd=sdk_dir, shell=True)
 
 #-------------------------------------------------------------------------------
