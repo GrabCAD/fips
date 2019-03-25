@@ -73,14 +73,16 @@ if not args.deploy.endswith('/'):
 if not os.path.exists(args.deploy):
     os.makedirs(args.deploy)
 
+pkg_name = args.package.replace('-','_')
+
 # create the empty project
-apk_dir = args.path + 'android/'
+apk_dir = args.path + 'android/' + args.name + '/'
 if not os.path.exists(apk_dir):
     os.makedirs(apk_dir)
 libs_dir = apk_dir + 'lib/' + args.abi + '/'
 if not os.path.exists(libs_dir):
     os.makedirs(libs_dir)
-src_dir = apk_dir + 'src/' + args.package.replace('.', '/')
+src_dir = apk_dir + 'src/' + pkg_name.replace('.', '/')
 if not os.path.exists(src_dir):
     os.makedirs(src_dir)
 obj_dir = apk_dir + '/obj'
@@ -104,7 +106,7 @@ if not os.path.exists(res_dir):
 # generate AndroidManifest.xml
 with open(apk_dir + 'AndroidManifest.xml', 'w') as f:
     f.write('<manifest xmlns:android="http://schemas.android.com/apk/res/android"\n')
-    f.write('  package="{}"\n'.format(args.package))
+    f.write('  package="{}"\n'.format(pkg_name))
     f.write('  android:versionCode="1"\n')
     f.write('  android:versionName="1.0">\n')
     f.write('  <uses-sdk android:minSdkVersion="11" android:targetSdkVersion="{}"/>\n'.format(args.version))
@@ -114,8 +116,8 @@ with open(apk_dir + 'AndroidManifest.xml', 'w') as f:
     f.write('    <activity android:name="android.app.NativeActivity"\n');
     f.write('      android:label="{}"\n'.format(args.name))
     f.write('      android:launchMode="singleTask"\n')
-    f.write('      android:screenOrientation="landscape"\n')
-    f.write('      android:configChanges="orientation|keyboardHidden">\n')
+    f.write('      android:screenOrientation="fullUser"\n')
+    f.write('      android:configChanges="orientation|screenSize|keyboard|keyboardHidden">\n')
     f.write('      <meta-data android:name="android.app.lib_name" android:value="{}"/>\n'.format(args.name))
     f.write('      <intent-filter>\n')
     f.write('        <action android:name="android.intent.action.MAIN"/>\n')

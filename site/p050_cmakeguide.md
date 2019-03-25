@@ -174,7 +174,7 @@ path, so that the directory structure is reflected in IDE file explorers.
 This behaviour can be overriden with the optional GROUP argument, and 
 an explicit group name (or path) can be defined.
 
-This is the default usage of fips\_dir, without explicitely overriding
+This is the default usage of fips\_dir, without explicitly overriding
 the IDE group name:
 
 {% highlight cmake %}
@@ -321,7 +321,7 @@ external dependency in another project. Fips will include this file either
 when the project itself is compiled, or the project is imported as an
 external dependency in other projects.
 
-Check out the [fips-include.cmake](https://github.com/floooh/oryol/blob/master/fips-include.cmake)
+Check out the [fips-include.cmake](https://github.com/floooh/oryol/blob/master/fips-files/include.cmake)
 file included in the Oryol 3D engine for a complex example.
 
 ### Fips Predefined CMake Variables
@@ -340,7 +340,6 @@ Fips defines a number of useful cmake variables:
 * **FIPS\_WIN32**: target platform is 32-bit Windows
 * **FIPS\_WIN64**: target platform is 64-bit Windows
 * **FIPS\_EMSCRIPTEN**: target platform is emscripten
-* **FIPS\_PNACL**: target platform is PNaCl
 * **FIPS\_ANDROID**: target platform is Android
 * **FIPS\_HOST\_WINDOWS**: host platform is Windows
 * **FIPS\_HOST\_OSX**: host platform is OSX
@@ -481,10 +480,6 @@ fips_begin_module(Input)
     if (FIPS_IOS)
         fips_dir(ios)
         fips_files(iosInputMgr.cc iosInputMgr.h)
-    endif()
-    if (FIPS_PNACL)
-        fips_dir(pnacl)
-        fips_files(pnaclInputMgr.cc pnaclInputMgr.h)
     endif()
     if (FIPS_MACOS OR FIPS_WINDOWS OR FIPS_LINUX)
         fips_dir(glfw)

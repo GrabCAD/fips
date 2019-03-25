@@ -6,7 +6,7 @@ import subprocess
 import yaml
 
 from mod import log, util, config, dep, template, settings, android
-from mod.tools import git, cmake, make, ninja, xcodebuild, ccmake, cmake_gui, vscode
+from mod.tools import git, cmake, make, ninja, xcodebuild, xcrun, ccmake, cmake_gui, vscode, clion
 
 #-------------------------------------------------------------------------------
 def init(fips_dir, proj_name) :
@@ -26,7 +26,7 @@ def init(fips_dir, proj_name) :
         for f in ['CMakeLists.txt', 'fips', 'fips.cmd', 'fips.yml'] :
             template.copy_template_file(fips_dir, proj_dir, f, templ_values)
         os.chmod(proj_dir + '/fips', 0o744)
-        gitignore_entries = ['.fips-*', '*.pyc', '.vscode/']
+        gitignore_entries = ['.fips-*', '*.pyc', '.vscode/', '.idea/']
         template.write_git_ignore(proj_dir, gitignore_entries)
     else :
         log.error("project dir '{}' does not exist".format(proj_dir))
@@ -66,12 +66,15 @@ def gen_project(fips_dir, proj_dir, cfg, force) :
     defines = {}
     defines['FIPS_USE_CCACHE'] = 'ON' if settings.get(proj_dir, 'ccache') else 'OFF'
     defines['FIPS_AUTO_IMPORT'] = 'OFF' if dep.get_policy(proj_dir, 'no_auto_import') else 'ON'
-    if cfg['build_tool'] == 'vscode_cmake':
+    if cfg['generator'] in ['Ninja', 'Unix Makefiles']:
         defines['CMAKE_EXPORT_COMPILE_COMMANDS'] = 'ON'
     if cfg['platform'] == 'ios':
+        defines['CMAKE_OSX_SYSROOT'] = xcrun.get_ios_sdk_sysroot()
         ios_team_id = settings.get(proj_dir, 'iosteam')
         if ios_team_id:
             defines['FIPS_IOS_TEAMID'] = ios_team_id
+    if cfg['platform'] == 'osx':
+        defines['CMAKE_OSX_SYSROOT'] = xcrun.get_macos_sdk_sysroot()
     do_it = force
     if not os.path.isdir(build_dir) :
         os.makedirs(build_dir)
@@ -90,6 +93,8 @@ def gen_project(fips_dir, proj_dir, cfg, force) :
         cmake_result = cmake.run_gen(cfg, fips_dir, proj_dir, build_dir, toolchain_path, defines)
         if cfg['build_tool'] == 'vscode_cmake':
             vscode.write_workspace_settings(fips_dir, proj_dir, cfg)
+        if cfg['build_tool'] == 'clion':
+            clion.write_workspace_settings(fips_dir, proj_dir, cfg)
         return cmake_result
     else :
         return True
@@ -300,12 +305,9 @@ def run(fips_dir, proj_dir, cfg_name, target_name, target_args, target_cwd) :
             if not target_cwd :
                 target_cwd = deploy_dir
 
-            if cfg['platform'] in ['emscripten', 'pnacl'] : 
+            if cfg['platform'] == 'emscripten': 
                 # special case: emscripten app
-                if cfg['platform'] == 'emscripten' :
-                    html_name = target_name + '.html'
-                else :
-                    html_name = target_name + '_pnacl.html'
+                html_name = target_name + '.html'
                 if util.get_host_platform() == 'osx' :
                     try :
                         subprocess.call(
@@ -331,11 +333,12 @@ def run(fips_dir, proj_dir, cfg_name, target_name, target_args, target_cwd) :
             elif cfg['platform'] == 'android' :
                 try :
                     adb_path = android.get_adb_path(fips_dir)
-                    # Android: first install the apk...
-                    cmd = '{} install -r {}/{}.apk'.format(adb_path, deploy_dir, target_name)
-                    subprocess.call(cmd, shell=True)
+                    pkg_name = android.target_to_package_name(target_name)
+                    # Android: first re-install the apk...
+                    cmd = '{} install -r {}.apk'.format(adb_path, target_name)
+                    subprocess.call(cmd, shell=True, cwd=deploy_dir)
                     # ...then start the apk
-                    cmd = '{} shell am start -n org.fips.{}/android.app.NativeActivity'.format(adb_path, target_name)
+                    cmd = '{} shell am start -n {}/android.app.NativeActivity'.format(adb_path, pkg_name)
                     subprocess.call(cmd, shell=True)
                     # ...then run adb logcat
                     cmd = '{} logcat'.format(adb_path)

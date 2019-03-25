@@ -5,8 +5,8 @@ import glob
 import yaml
 from collections import OrderedDict
 from mod import log, util, dep
-from mod.tools import cmake, make, ninja, xcodebuild, vscode
-from mod import emscripten, nacl, android
+from mod.tools import cmake, make, ninja, xcodebuild, vscode, clion
+from mod import emscripten, android
 
 # non-cross-compiling platforms
 native_platforms = [
@@ -21,7 +21,8 @@ build_tools = [
     'ninja',
     'xcodebuild',
     'cmake',
-    'vscode_cmake'
+    'vscode_cmake',
+    'clion'
 ]
 
 default_config = {
@@ -216,6 +217,8 @@ def check_build_tool(fips_dir, tool_name) :
         return xcodebuild.check_exists(fips_dir)
     elif tool_name == 'vscode_cmake' :
         return vscode.check_exists(fips_dir)
+    elif tool_name == 'clion' :
+        return clion.check_exists(fips_dir)
     else :
         return False;
 
@@ -224,8 +227,6 @@ def check_sdk(fips_dir, platform_name) :
     """check whether an external crossplatform-SDK is installed"""
     if platform_name == 'emscripten' :
         return emscripten.check_exists(fips_dir)
-    elif platform_name == 'pnacl' :
-        return nacl.check_exists(fips_dir)
     elif platform_name == 'android' :
         return android.check_exists(fips_dir)
     else :
