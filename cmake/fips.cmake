@@ -303,7 +303,7 @@ endmacro()
 macro(fips_end_lib)
 
     # add library target
-    add_library(${CurTargetName} ${CurSources})
+    add_library(${CurTargetName} STATIC ${CurSources})
     fips_apply_target_group(${CurTargetName})
 
     # set platform- and target-specific compiler options
