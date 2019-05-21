@@ -1,5 +1,6 @@
 """wrapper for some git commands"""
 
+import os
 import re
 import subprocess
 from mod import log
@@ -48,6 +49,14 @@ def clone(url, branch, depth, name, cwd) :
         cmd += ' --branch {} --single-branch'.format(branch)
     if depth :
         cmd += ' --depth {}'.format(depth)
+
+    github_https_url = 'https://github.com/'
+    if url.startswith(github_https_url):
+        github_personal_access_token = os.environ['FIPS_GITHUB_PERSONAL_ACCESS_TOKEN']
+        if github_personal_access_token:
+            url_remainder_start = len(github_https_url)
+            url = 'https://' + github_personal_access_token + '@github.com/' + url[url_remainder_start:]
+    
     cmd += ' {} {}'.format(url, name)
     res = subprocess.call(cmd, cwd=cwd, shell=True)
     return res == 0
