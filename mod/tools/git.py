@@ -33,6 +33,35 @@ def check_exists_with_error():
         return False
 
 #-------------------------------------------------------------------------------
+def get_url_with_personal_access_token(url) :
+    """return the repo url for private repos using a github personal access token
+
+         handles both git@github.com and https://github.com urls
+            (they are converted to https with the PAT).
+
+       ref: https://github.com/settings/tokens
+    
+    :param url:     the git url for the repo
+    :returns:       the git url for the repo with the token added for private repo access
+                    or the original url if the token is not available
+    """
+    github_https_url = 'https://github.com/'
+    github_gitssh_url = 'git@github.com:'
+
+    github_personal_access_token = os.environ.get('FIPS_GITHUB_PERSONAL_ACCESS_TOKEN', None)
+    if github_personal_access_token:
+        url_remainder_start = 0
+        if url.startswith(github_https_url):
+            url_remainder_start = len(github_https_url)
+        elif url.startswith(github_gitssh_url):
+            url_remainder_start = len(github_gitssh_url)
+
+        if url_remainder_start > 0:
+            url = 'https://' + github_personal_access_token + '@github.com/' + url[url_remainder_start:]
+    
+    return url
+
+#-------------------------------------------------------------------------------
 def clone(url, branch, depth, name, cwd) :
     """git clone a remote git repo
     
@@ -50,13 +79,7 @@ def clone(url, branch, depth, name, cwd) :
     if depth :
         cmd += ' --depth {}'.format(depth)
 
-    github_https_url = 'https://github.com/'
-    if url.startswith(github_https_url):
-        github_personal_access_token = os.environ['FIPS_GITHUB_PERSONAL_ACCESS_TOKEN']
-        if github_personal_access_token:
-            url_remainder_start = len(github_https_url)
-            url = 'https://' + github_personal_access_token + '@github.com/' + url[url_remainder_start:]
-    
+    url = get_url_with_personal_access_token(url)
     cmd += ' {} {}'.format(url, name)
     res = subprocess.call(cmd, cwd=cwd, shell=True)
     return res == 0
