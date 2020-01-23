@@ -259,7 +259,12 @@ def confirm(question) :
 def url_download_hook(count, block_size, total_size) :
     """a download progress hook for urllib"""
     percent = int(count * block_size * 100 / total_size)
-    sys.stdout.write('\r{}%'.format(percent))
+    if percent > 100:
+        percent = 100
+    if total_size > 0:
+        sys.stdout.write('\r{}% '.format(percent))
+    if percent == 100:
+        sys.stdout.write('\n')
 
 #-------------------------------------------------------------------------------
 def get_host_platform() :
