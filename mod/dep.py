@@ -2,10 +2,42 @@
 
 import os
 import filecmp
+import subprocess
+import sys
+import zipfile
 
 from collections import OrderedDict
-from mod import log, util, registry, template
+from mod import log, util, registry, template #, config
+# import mod.config as mod_config
 from mod.tools import git
+
+if sys.version_info[0] >= 3:
+    from urllib.request import urlretrieve
+else:
+    from urllib import urlretrieve
+
+#-------------------------------------------------------------------------------
+def get_git_release_download(fips_dir, url):
+    filename = url[url.rfind("/")+1:]
+    return os.path.join(util.get_workspace_dir(fips_dir), filename)
+
+#-------------------------------------------------------------------------------
+def get_git_release_destdir(fips_dir, proj_name, platform):
+    return os.path.join(util.get_workspace_dir(fips_dir), '%s-%s' % (proj_name, platform))
+
+#-------------------------------------------------------------------------------
+def uncompress(fips_dir, path, destdir) :
+    # the python zip module doesn't preserve the executable flags, so just
+    # call unzip on Linux and OSX
+    if not os.path.exists(destdir):
+        os.makedirs(destdir)
+    if util.get_host_platform() in ['osx', 'linux']:
+        # log.colored(log.YELLOW, "=== path = {}".format(path))
+        # log.colored(log.YELLOW, "=== cwd = {}".format(destdir))
+        subprocess.call('unzip {}'.format(path), cwd=destdir, shell=True)
+    else:
+        with zipfile.ZipFile(path, 'r') as archive:
+            archive.extractall(destdir)
 
 #-------------------------------------------------------------------------------
 def get_imports(fips_dir, proj_dir) :
@@ -44,8 +76,8 @@ def get_imports(fips_dir, proj_dir) :
                         imports[dep]['branch'] = 'master'
                     if not 'cond' in imports[dep] :
                         imports[dep]['cond'] = None
-                    if not 'git' in imports[dep] :
-                        log.error("no git URL in import '{}' in '{}/fips.yml'!\n".format(dep, proj_dir))
+                    if not 'git' in imports[dep] and not 'git-release' in imports[dep]:
+                        log.error("no git or git-release URL in import '{}' in '{}/fips.yml'!\n".format(dep, proj_dir))
                     if not 'group' in imports[dep] :
                         imports[dep]['group'] = None
             else :
@@ -140,7 +172,9 @@ def _rec_get_all_imports_exports(fips_dir, proj_dir, result) :
         for dep_proj_name in imports :
             if dep_proj_name not in result :
                 dep_proj_dir = util.get_project_dir(fips_dir, dep_proj_name)
-                dep_url = imports[dep_proj_name]['git']
+                dep_url = imports[dep_proj_name].get('git')
+                if not dep_url:
+                    dep_url = imports[dep_proj_name].get('git-release')
                 success, result = _rec_get_all_imports_exports(fips_dir, dep_proj_dir, result)
                 # break recursion on error
                 if not success :
@@ -168,11 +202,12 @@ def get_all_imports_exports(fips_dir, proj_dir) :
     return _rec_get_all_imports_exports(fips_dir, proj_dir, result)
 
 #-------------------------------------------------------------------------------
-def _rec_fetch_imports(fips_dir, proj_dir, handled) :
+def _rec_fetch_imports(fips_dir, proj_dir, platform, handled) :
     """internal recursive function to fetch project imports,
     keeps an array of already handled dirs to break cyclic dependencies
 
     :param proj_dir:    current project directory
+    :param platform:    platform name
     :param handled:     array of already handled dirs
     :returns:           updated array of handled dirs
     """
@@ -191,23 +226,47 @@ def _rec_fetch_imports(fips_dir, proj_dir, handled) :
                 if not os.path.isdir(dep_proj_dir) :
                     # directory did not exist, do a fresh git clone
                     dep = imports[dep_proj_name]
-                    git_commit = None if 'rev' not in dep else dep['rev']
-                    if git_commit :
-                        if 'depth' in dep :
-                            # when using rev, we may not want depth because the revision may not be reachable
-                            log.colored(log.YELLOW, "=== 'depth' was ignored because parameter 'rev' is specified.")
-                        dep['depth'] = None
-                    git_depth = git.clone_depth if not git_commit and 'depth' not in dep else dep['depth']
-                    git_url = dep['git']
-                    git_branch = dep['branch']
-                    if git.clone(git_url, git_branch, git_depth, dep_proj_name, ws_dir) :
+                    if dep.get('git'): # a git repo
+                        git_commit = None if 'rev' not in dep else dep['rev']
                         if git_commit :
-                            log.colored(log.YELLOW, "=== revision: '{}':".format(git_commit))
-                            dep_ok = git.checkout(dep_proj_dir, git_commit)
+                            if 'depth' in dep :
+                                # when using rev, we may not want depth because the revision may not be reachable
+                                log.colored(log.YELLOW, "=== 'depth' was ignored because parameter 'rev' is specified.")
+                            dep['depth'] = None
+                        git_depth = git.clone_depth if not git_commit and 'depth' not in dep else dep['depth']
+                        git_url = dep['git']
+                        git_branch = dep['branch']
+                        if git.clone(git_url, git_branch, git_depth, dep_proj_name, ws_dir) :
+                            if git_commit :
+                                log.colored(log.YELLOW, "=== revision: '{}':".format(git_commit))
+                                dep_ok = git.checkout(dep_proj_dir, git_commit)
+                            else :
+                                dep_ok = True
                         else :
-                            dep_ok = True
-                    else :
-                        log.error('failed to git clone {} into {}'.format(git_url, dep_proj_dir))
+                            log.error('failed to git clone {} into {}'.format(git_url, dep_proj_dir))
+                    elif dep.get('git-release'):
+                        git_release_url_template = dep['git-release']
+                        version = dep['version']
+                        # log.colored(log.YELLOW, "=== git release URL template = '{}'".format(git_release_url_template))
+                        # log.colored(log.YELLOW, "=== platform = '{}'".format(platform))
+
+                        # specialize the git release template string
+                        git_release_url = git_release_url_template
+                        git_release_url = git_release_url.replace('$VERSION', version)
+                        git_release_url = git_release_url.replace('$PLATFORM', platform)
+                        git_release_download = get_git_release_download(fips_dir, git_release_url)
+                        git_release_destdir = get_git_release_destdir(fips_dir, dep_proj_name, platform)
+                        # log.colored(log.YELLOW, "=== git_release_download = '{}'".format(git_release_download))
+                        # log.colored(log.YELLOW, "=== git_release_destdir = '{}'".format(git_release_destdir))
+                        if not os.path.exists(git_release_download):
+                            log.info("downloading '{}'...".format(git_release_url))
+                            urlretrieve(git_release_url, git_release_download, util.url_download_hook)
+                        if not os.path.exists(git_release_destdir):
+                            log.info("unpacking '{}'...".format(git_release_download))
+                            uncompress(fips_dir, git_release_download, git_release_destdir)
+                        else:
+                            log.info("dir '{}' exists".format(git_release_destdir))
+                        dep_ok = True
                 else :
                     # directory already exists
                     log.info("dir '{}' exists".format(dep_proj_dir))
@@ -215,19 +274,20 @@ def _rec_fetch_imports(fips_dir, proj_dir, handled) :
 
                 # recuse
                 if dep_ok :
-                    handled = _rec_fetch_imports(fips_dir, dep_proj_dir, handled)
+                    handled = _rec_fetch_imports(fips_dir, dep_proj_dir, platform, handled)
 
     # done, return the new handled array
     return handled
 
 #-------------------------------------------------------------------------------
-def fetch_imports(fips_dir, proj_dir) :
+def fetch_imports(fips_dir, proj_dir, platform) :
     """recursively git-clone the imports of a project, NOTE: existing
     repos will never be updated
 
     :param proj_dir:    existing project directory
+    :param platform:    platform name
     """
-    _rec_fetch_imports(fips_dir, proj_dir, [])
+    _rec_fetch_imports(fips_dir, proj_dir, platform, [])
 
 #-------------------------------------------------------------------------------
 def gather_imports(fips_dir, proj_dir) :
