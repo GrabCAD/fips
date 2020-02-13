@@ -25,7 +25,7 @@ def fix_path(path) :
 #-------------------------------------------------------------------------------
 def get_workspace_dir(fips_dir) :
     """get workspace (parent) dir from fips dir
-    
+
     :param fips_dir:    absolute path to fips
     :returns:           absolute path to workspace (parent dir of fips)
     """
@@ -43,7 +43,7 @@ def get_project_dir(fips_dir, proj_name) :
 
 #-------------------------------------------------------------------------------
 def get_build_dir(fips_dir, proj_name, cfg) :
-    """get absolute path to build directory in same workspace as fips for 
+    """get absolute path to build directory in same workspace as fips for
     given configuration
 
     :param fips_dir:    absolute path of fips
@@ -95,7 +95,7 @@ def get_configs_dir(proj_dir):
     None if no such directory exists.
 
     :param proj_dir:    absolute path of project directory
-    :returns:           absolute path of configs dir, or None 
+    :returns:           absolute path of configs dir, or None
     """
     return get_fips_dir(proj_dir, 'configs')
 
@@ -170,6 +170,12 @@ def get_project_name_from_dir(proj_dir) :
     :returns:           project name (last dir-name of project directory)
     """
     return os.path.split(proj_dir)[1]
+
+#-------------------------------------------------------------------------------
+def get_platform_from_config(cfg_name) :
+    """extract the platform name from the config name
+    """
+    return cfg_name[0:cfg_name.find('-')]
 
 #-------------------------------------------------------------------------------
 def load_fips_yml(proj_dir) :

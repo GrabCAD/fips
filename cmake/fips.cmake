@@ -10,7 +10,7 @@ endif()
 get_filename_component(FIPS_PROJECT_DIR "." ABSOLUTE)
 get_filename_component(FIPS_PROJECT_NAME ${FIPS_PROJECT_DIR} NAME)
 get_filename_component(FIPS_ROOT "$ENV{FIPS_ROOT}" ABSOLUTE)
-if(FIPS_ROOT) 
+if(FIPS_ROOT)
     set(FIPS_DEPLOY_DIR "${FIPS_ROOT}/fips-deploy")
     set(FIPS_BUILD_DIR "${FIPS_ROOT}/fips-build")
 else(FIPS_ROOT)
@@ -285,6 +285,59 @@ macro(fips_end_module)
 endmacro()
 
 #-------------------------------------------------------------------------------
+#   fips_begin_imported_module(module)
+#   Begin defining an fips module.
+#
+macro(fips_begin_imported_module name kind)
+    set(name ${name})
+    set(kind ${kind})
+    if (FIPS_CMAKE_VERBOSE)
+        message("Module: name=" ${name})
+    endif()
+    fips_reset(${name})
+endmacro()
+
+#-------------------------------------------------------------------------------
+#   fips_imported_location(loc)
+#   set the location of an imported module file
+#
+macro(fips_imported_location loc)
+    list(APPEND CurImportedLocation ${loc})
+endmacro()
+
+#-------------------------------------------------------------------------------
+#   fips_end_imported_module(module)
+#   End defining an fips module, the interesting stuff happens here.
+#
+macro(fips_end_imported_module)
+
+    # add library target
+    add_library(${CurTargetName} ${kind} IMPORTED GLOBAL)
+    if (${CurImportedLocation})
+        set_property(TARGET ${CurTargetName} PROPERTY IMPORTED_LOCATION ${CurImportedLocation})
+    endif()
+    if (NOT ${kind} STREQUAL "INTERFACE")
+    fips_apply_target_group(${CurTargetName})
+    endif()
+
+    # set platform- and target-specific compiler options
+    fips_vs_apply_options(${CurTargetName})
+
+    # add dependencies
+    fips_resolve_dependencies(${CurTargetName})
+
+    # handle generators (post-target)
+    fips_handle_generators(${CurTargetName})
+
+    # track some target properties in YAML files
+    fips_addto_targets_list(${CurTargetName} "module")
+    if (NOT ${kind} STREQUAL "INTERFACE")
+    fips_addto_headerdirs_list(${CurTargetName})
+    endif()
+    fips_addto_defines_list(${CurTargetName})
+endmacro()
+
+#-------------------------------------------------------------------------------
 #   fips_begin_lib(name)
 #   Begin defining a static link library
 #
@@ -308,7 +361,7 @@ macro(fips_end_lib)
 
     # set platform- and target-specific compiler options
     fips_vs_apply_options(${CurTargetName})
-    
+
     # add dependencies
     fips_resolve_dependencies(${CurTargetName})
 
@@ -707,7 +760,7 @@ macro(fips_generate)
         fips_add_target_dependency(${_fg_REQUIRES})
     endif()
     fips_add_file("${_fg_FROM}")
-    fips_add_generator(${CurTargetName} "${_fg_TYPE}" ${_fg_OUT_OF_SOURCE} "${_fg_FROM}" "${_fg_SOURCE}" "${_fg_HEADER}" "${_fg_ARGS}") 
+    fips_add_generator(${CurTargetName} "${_fg_TYPE}" ${_fg_OUT_OF_SOURCE} "${_fg_FROM}" "${_fg_SOURCE}" "${_fg_HEADER}" "${_fg_ARGS}")
 endmacro()
 
 #-------------------------------------------------------------------------------

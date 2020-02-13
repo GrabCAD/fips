@@ -48,7 +48,7 @@ def clone(fips_dir, url) :
         git_branch = util.get_gitbranch_from_url(url)
         if git.clone(git_url, git_branch, git.clone_depth, proj_name, ws_dir) :
             # fetch imports
-            dep.fetch_imports(fips_dir, proj_dir)
+            dep.fetch_imports(fips_dir, proj_dir, util.get_platform_from_config(cfg_name))
             return True
         else :
             log.error("failed to 'git clone {}' into '{}'".format(url, proj_dir))
@@ -81,7 +81,7 @@ def gen_project(fips_dir, proj_dir, cfg, force) :
     if not os.path.isfile(build_dir + '/CMakeCache.txt'):
         do_it = True
     if do_it :
-        # if Ninja build tool and on Windows, need to copy 
+        # if Ninja build tool and on Windows, need to copy
         # the precompiled ninja.exe to the build dir
         log.colored(log.YELLOW, "=== generating: {}".format(cfg['name']))
         log.info("config file: {}".format(cfg['path']))
@@ -110,7 +110,7 @@ def gen(fips_dir, proj_dir, cfg_name) :
     """
 
     # prepare
-    dep.fetch_imports(fips_dir, proj_dir)
+    dep.fetch_imports(fips_dir, proj_dir, util.get_platform_from_config(cfg_name))
     proj_name = util.get_project_name_from_dir(proj_dir)
     util.ensure_valid_project_dir(proj_dir)
     dep.gather_and_write_imports(fips_dir, proj_dir, cfg_name)
@@ -134,7 +134,7 @@ def gen(fips_dir, proj_dir, cfg_name) :
 
     if num_valid_configs != len(configs) :
         log.error('{} out of {} configs failed!'.format(len(configs) - num_valid_configs, len(configs)))
-        return False      
+        return False
     else :
         log.colored(log.GREEN, '{} configs generated'.format(num_valid_configs))
         return True
@@ -148,7 +148,7 @@ def configure(fips_dir, proj_dir, cfg_name) :
     :cfg_name:          build config name
     """
 
-    dep.fetch_imports(fips_dir, proj_dir)
+    dep.fetch_imports(fips_dir, proj_dir, util.get_platform_from_config(cfg_name))
     proj_name = util.get_project_name_from_dir(proj_dir)
     util.ensure_valid_project_dir(proj_dir)
     dep.gather_and_write_imports(fips_dir, proj_dir, cfg_name)
@@ -202,7 +202,7 @@ def make_clean(fips_dir, proj_dir, cfg_name) :
                     result = xcodebuild.run_clean(fips_dir, build_dir)
                 else :
                     result = cmake.run_clean(fips_dir, build_dir)
-                    
+
                 if result :
                     num_valid_configs += 1
                 else :
@@ -214,7 +214,7 @@ def make_clean(fips_dir, proj_dir, cfg_name) :
 
     if num_valid_configs != len(configs) :
         log.error('{} out of {} configs failed!'.format(len(configs) - num_valid_configs, len(configs)))
-        return False      
+        return False
     else :
         log.colored(log.GREEN, '{} configs cleaned'.format(num_valid_configs))
         return True
@@ -231,7 +231,7 @@ def build(fips_dir, proj_dir, cfg_name, target=None) :
     """
 
     # prepare
-    dep.fetch_imports(fips_dir, proj_dir)
+    dep.fetch_imports(fips_dir, proj_dir, util.get_platform_from_config(cfg_name))
     proj_name = util.get_project_name_from_dir(proj_dir)
     util.ensure_valid_project_dir(proj_dir)
     dep.gather_and_write_imports(fips_dir, proj_dir, cfg_name)
@@ -273,7 +273,7 @@ def build(fips_dir, proj_dir, cfg_name, target=None) :
 
     if num_valid_configs != len(configs) :
         log.error('{} out of {} configs failed!'.format(len(configs) - num_valid_configs, len(configs)))
-        return False      
+        return False
     else :
         log.colored(log.GREEN, '{} configs built'.format(num_valid_configs))
         return True
@@ -293,7 +293,7 @@ def run(fips_dir, proj_dir, cfg_name, target_name, target_args, target_cwd) :
     retcode = 10
     proj_name = util.get_project_name_from_dir(proj_dir)
     util.ensure_valid_project_dir(proj_dir)
-    
+
     # load the config(s)
     configs = config.load(fips_dir, proj_dir, cfg_name)
     if configs :
@@ -305,7 +305,7 @@ def run(fips_dir, proj_dir, cfg_name, target_name, target_args, target_cwd) :
             if not target_cwd :
                 target_cwd = deploy_dir
 
-            if cfg['platform'] == 'emscripten': 
+            if cfg['platform'] == 'emscripten':
                 # special case: emscripten app
                 html_name = target_name + '.html'
                 if util.get_host_platform() == 'osx' :
@@ -351,7 +351,7 @@ def run(fips_dir, proj_dir, cfg_name, target_name, target_args, target_cwd) :
                 # special case: Mac app
                 cmd_line = '{}/{}.app/Contents/MacOS/{}'.format(deploy_dir, target_name, target_name)
             else :
-                cmd_line = '{}/{}'.format(deploy_dir, target_name) 
+                cmd_line = '{}/{}'.format(deploy_dir, target_name)
             if cmd_line :
                 if target_args :
                     cmd_line += ' ' + ' '.join(target_args)
