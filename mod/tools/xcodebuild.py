@@ -19,7 +19,7 @@ def check_exists(fips_dir) :
         return False
 
 #------------------------------------------------------------------------------
-def run_build(fips_dir, target, build_type, build_dir, num_jobs=1) :
+def run_build(fips_dir, target, build_type, build_dir, num_jobs=1):
     """build a target
 
     :param target:      name of build target, or None
@@ -30,7 +30,7 @@ def run_build(fips_dir, target, build_type, build_dir, num_jobs=1) :
     """
     if not target :
         target = "ALL_BUILD"
-    cmdLine = 'xcodebuild -jobs {} -configuration {} -target {}'.format(num_jobs, build_type, target)
+    cmdLine = f'xcodebuild -jobs {num_jobs} -configuration {build_type} -target {target}'
     print(cmdLine)
     res = subprocess.call(cmdLine, cwd=build_dir, shell=True)
     return res == 0

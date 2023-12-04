@@ -12,20 +12,16 @@ from mod import log, util, settings, config, project
 from mod.tools import vscode, clion
 
 #-------------------------------------------------------------------------------
-def run(fips_dir, proj_dir, args) :
+def run(fips_dir, proj_dir, args):
     """run the 'open' verb (opens project in IDE)"""
     if not util.is_valid_project_dir(proj_dir) :
         log.error('must be run in a project directory')
     proj_name = util.get_project_name_from_dir(proj_dir)
-    cfg_name = None
-    if len(args) > 0 :
-        cfg_name = args[0]
+    cfg_name = args[0] if len(args) > 0 else None
     if not cfg_name :
         cfg_name = settings.get(proj_dir, 'config')
 
-    # check the cmake generator of this config
-    configs = config.load(fips_dir, proj_dir, cfg_name)
-    if configs :
+    if configs := config.load(fips_dir, proj_dir, cfg_name):
         # hmm, only look at first match, 'open' doesn't
         # make sense with config-patterns
         cfg = configs[0]
@@ -44,26 +40,25 @@ def run(fips_dir, proj_dir, args) :
         if cfg['build_tool'] == 'clion':
             clion.run(proj_dir)
             return
-        # try to open as Xcode project
-        proj = glob.glob(build_dir + '/*.xcodeproj')
-        if proj :
-            subprocess.call('open "{}"'.format(proj[0]), shell=True)
+        if proj := glob.glob(f'{build_dir}/*.xcodeproj'):
+            subprocess.call(f'open "{proj[0]}"', shell=True)
             return
-        # try to open as VS project
-        proj = glob.glob(build_dir + '/*.sln')
-        if proj :
-            subprocess.call('cmd /c start {}'.format(proj[0]), shell=True)
+        if proj := glob.glob(f'{build_dir}/*.sln'):
+            subprocess.call(f'cmd /c start {proj[0]}', shell=True)
             return
-        # try to open as eclipse project
-        proj = glob.glob(build_dir + '/.cproject')
-        if proj :
-            subprocess.call('eclipse -nosplash --launcher.timeout 60 -application org.eclipse.cdt.managedbuilder.core.headlessbuild -import "{}"'.format(build_dir), shell=True)
+        if proj := glob.glob(f'{build_dir}/.cproject'):
+            subprocess.call(
+                f'eclipse -nosplash --launcher.timeout 60 -application org.eclipse.cdt.managedbuilder.core.headlessbuild -import "{build_dir}"',
+                shell=True,
+            )
             subprocess.call('eclipse', shell=True)
             return
 
-        log.error("don't know how to open a '{}' project in {}".format(cfg['generator'], build_dir))
-    else :
-        log.error("config '{}' not found".format(cfg_name))
+        log.error(
+            f"don't know how to open a '{cfg['generator']}' project in {build_dir}"
+        )
+    else:
+        log.error(f"config '{cfg_name}' not found")
 
 #-------------------------------------------------------------------------------
 def help() :

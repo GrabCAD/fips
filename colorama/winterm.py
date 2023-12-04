@@ -61,9 +61,7 @@ class WinTerm(object):
     def set_console(self, attrs=None, on_stderr=False):
         if attrs is None:
             attrs = self.get_attrs()
-        handle = win32.STDOUT
-        if on_stderr:
-            handle = win32.STDERR
+        handle = win32.STDERR if on_stderr else win32.STDOUT
         win32.SetConsoleTextAttribute(handle, attrs)
 
     def get_position(self, handle):
@@ -79,17 +77,13 @@ class WinTerm(object):
             #I'm not currently tracking the position, so there is no default.
             #position = self.get_position()
             return
-        handle = win32.STDOUT
-        if on_stderr:
-            handle = win32.STDERR
+        handle = win32.STDERR if on_stderr else win32.STDOUT
         win32.SetConsoleCursorPosition(handle, position)
 
     def cursor_up(self, num_rows=0, on_stderr=False):
         if num_rows == 0:
             return
-        handle = win32.STDOUT
-        if on_stderr:
-            handle = win32.STDERR
+        handle = win32.STDERR if on_stderr else win32.STDOUT
         position = self.get_position(handle)
         adjusted_position = (position.Y - num_rows, position.X)
         self.set_cursor_position(adjusted_position, on_stderr)
@@ -104,9 +98,7 @@ class WinTerm(object):
         #    and to do so relative to the cursor position.
         if mode[0] not in (2,):
             return
-        handle = win32.STDOUT
-        if on_stderr:
-            handle = win32.STDERR
+        handle = win32.STDERR if on_stderr else win32.STDOUT
         # here's where we'll home the cursor
         coord_screen = win32.COORD(0,0)
         csbi = win32.GetConsoleScreenBufferInfo(handle)

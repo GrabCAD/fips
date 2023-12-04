@@ -6,14 +6,14 @@ from mod import log, util
 from mod.tools import clion
 
 #-------------------------------------------------------------------------------
-def run(fips_dir, proj_dir, args) :
+def run(fips_dir, proj_dir, args):
     if not util.is_valid_project_dir(proj_dir) :
         log.error('must be run in a project directory')
     if len(args) > 0:
         if args[0] == 'clean':
             clion.cleanup(fips_dir, proj_dir)
         else:
-            log.error("invalid noun '{}' (expected: clean)".format(noun))
+            log.error(f"invalid noun '{noun}' (expected: clean)")
 
 #-------------------------------------------------------------------------------
 def help():

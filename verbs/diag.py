@@ -21,35 +21,34 @@ def check_fips(fips_dir) :
         log.colored(log.GREEN, '  uptodate')
 
 #-------------------------------------------------------------------------------
-def check_tools(fips_dir) :
+def check_tools(fips_dir):
     """check whether required command line tools can be found"""
     log.colored(log.YELLOW, '=== tools:')
     tools = [ git, cmake, ccmake, cmake_gui, make, ninja, xcodebuild, xcrun, javac, java, node, python2, ccache, vscode, clion ]
     platform = util.get_host_platform()
     for tool in tools:
-        if platform in tool.platforms :
-            if tool.check_exists(fips_dir) :
+        if platform in tool.platforms:
+            if tool.check_exists(fips_dir):
                 log.ok(tool.name, 'found')
-            else :
-                if tool.optional :
-                    log.optional(tool.name, 'OPTIONAL, NOT FOUND ({})'.format(tool.not_found))
-                else :
-                    log.failed(tool.name, 'NOT FOUND ({})'.format(tool.not_found))
+            elif tool.optional:
+                log.optional(tool.name, f'OPTIONAL, NOT FOUND ({tool.not_found})')
+            else:
+                log.failed(tool.name, f'NOT FOUND ({tool.not_found})')
 
 #-------------------------------------------------------------------------------
-def check_configs(fips_dir, proj_dir) :
+def check_configs(fips_dir, proj_dir):
     """find configs and check if they are valid"""
     log.colored(log.YELLOW, '=== configs:')
     dirs = [ fips_dir ]
     configs = config.load(fips_dir, proj_dir, '*')
-    for cfg in configs :
+    for cfg in configs:
         log.colored(log.BLUE, cfg['name'])
         valid, errors = config.check_config_valid(fips_dir, proj_dir, cfg)
-        if valid :
+        if valid:
             log.colored(log.GREEN, '  ok')
-        else :
-            for error in errors :
-                log.info('  {}'.format(error))
+        else:
+            for error in errors:
+                log.info(f'  {error}')
 
 #-------------------------------------------------------------------------------
 def check_imports(fips_dir, proj_dir) :
@@ -70,17 +69,15 @@ def check_local_changes(fips_dir, proj_dir) :
         log.warn('currently not in a project directory')
 
 #-------------------------------------------------------------------------------
-def run(fips_dir, proj_dir, args) :
+def run(fips_dir, proj_dir, args):
     """run diagnostics
 
     :param fips_dir:    absolute path to fips directory
     :param proj_dir:    absolute path to current project
     :args:              command line args
     """
-    noun = 'all'
     ok = False
-    if len(args) > 0 :
-        noun = args[0]
+    noun = args[0] if len(args) > 0 else 'all'
     if noun in ['all', 'configs'] :
         check_configs(fips_dir, proj_dir)
         ok = True
@@ -96,8 +93,8 @@ def run(fips_dir, proj_dir, args) :
     if noun in ['all', 'fips'] :
         check_fips(fips_dir)
         ok = True
-    if not ok :
-        log.error("invalid noun '{}'".format(noun))
+    if not ok:
+        log.error(f"invalid noun '{noun}'")
 
 #-------------------------------------------------------------------------------
 def help() :

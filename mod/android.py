@@ -27,8 +27,8 @@ tools_archives = {
 }
 
 #-------------------------------------------------------------------------------
-def get_sdk_dir(fips_dir) :
-    return util.get_workspace_dir(fips_dir) + '/fips-sdks/android'
+def get_sdk_dir(fips_dir):
+    return f'{util.get_workspace_dir(fips_dir)}/fips-sdks/android'
 
 #-------------------------------------------------------------------------------
 def check_exists(fips_dir) :
@@ -37,7 +37,7 @@ def check_exists(fips_dir) :
 
 #-------------------------------------------------------------------------------
 def get_adb_path(fips_dir):
-    return get_sdk_dir(fips_dir) + '/platform-tools/adb'
+    return f'{get_sdk_dir(fips_dir)}/platform-tools/adb'
 
 #-------------------------------------------------------------------------------
 def get_tools_url() :
@@ -45,7 +45,7 @@ def get_tools_url() :
 
 #-------------------------------------------------------------------------------
 def get_tools_archive_path(fips_dir):
-    return get_sdk_dir(fips_dir) + '/' + tools_archives[util.get_host_platform()]
+    return f'{get_sdk_dir(fips_dir)}/{tools_archives[util.get_host_platform()]}'
 
 #-------------------------------------------------------------------------------
 #   convert a cmake target into a valid Android package name,
@@ -58,10 +58,10 @@ def target_to_package_name(target):
 
 #-------------------------------------------------------------------------------
 def install_package(fips_dir, pkg):
-    log.colored(log.BLUE, '>>> install Android SDK package: {}'.format(pkg))
-    sdkmgr_dir = get_sdk_dir(fips_dir) + '/tools/bin/'
-    sdkmgr_path = sdkmgr_dir + 'sdkmanager'
-    cmd = '{} --verbose {}'.format(sdkmgr_path, pkg)
+    log.colored(log.BLUE, f'>>> install Android SDK package: {pkg}')
+    sdkmgr_dir = f'{get_sdk_dir(fips_dir)}/tools/bin/'
+    sdkmgr_path = f'{sdkmgr_dir}sdkmanager'
+    cmd = f'{sdkmgr_path} --verbose {pkg}'
     subprocess.call(cmd, cwd=sdkmgr_dir, shell=True)
 
 #-------------------------------------------------------------------------------
@@ -70,25 +70,23 @@ def ensure_sdk_dirs(fips_dir) :
         os.makedirs(get_sdk_dir(fips_dir))
 
 #-------------------------------------------------------------------------------
-def uncompress(fips_dir, path) :
+def uncompress(fips_dir, path):
     # the python zip module doesn't preserve the executable flags, so just
     # call unzip on Linux and OSX
     if util.get_host_platform() in ['osx', 'linux']:
-        subprocess.call('unzip {}'.format(path), cwd=get_sdk_dir(fips_dir), shell=True)
+        subprocess.call(f'unzip {path}', cwd=get_sdk_dir(fips_dir), shell=True)
     else:
         with zipfile.ZipFile(path, 'r') as archive:
             archive.extractall(get_sdk_dir(fips_dir))
 
 #-------------------------------------------------------------------------------
-def compute_sha256(path, converter=lambda x: x, chunk_size=65536) :
+def compute_sha256(path, converter=lambda x: x, chunk_size=65536):
     if not os.path.isfile(path) :
         return None
     result = hashlib.sha256()
-    with open(path, 'rb') as file :
-        chunk = file.read(chunk_size)
-        while chunk :
+    with open(path, 'rb') as file:
+        while chunk := file.read(chunk_size):
             result.update(converter(chunk))
-            chunk = file.read(chunk_size)
     return result.hexdigest()
 
 #-------------------------------------------------------------------------------
@@ -98,7 +96,7 @@ def strip_whitespace(bin_str) :
     return bin_str
 
 #-------------------------------------------------------------------------------
-def setup(fips_dir, proj_dir) :
+def setup(fips_dir, proj_dir):
     """setup the Android SDK and NDK"""
     log.colored(log.YELLOW, '=== setup Android SDK/NDK :')
 
@@ -111,9 +109,9 @@ def setup(fips_dir, proj_dir) :
     # download the command line tools archive
     tools_archive_path = get_tools_archive_path(fips_dir)
     tools_url = get_tools_url()
-    log.info("downloading '{}'...".format(tools_url))
+    log.info(f"downloading '{tools_url}'...")
     urlretrieve(tools_url, tools_archive_path, util.url_download_hook)
-    log.info("\nunpacking '{}'...".format(tools_archive_path))
+    log.info(f"\nunpacking '{tools_archive_path}'...")
     uncompress(fips_dir, tools_archive_path)
 
     # install the required SDK components through sdkmanager
@@ -123,8 +121,8 @@ def setup(fips_dir, proj_dir) :
     install_package(fips_dir, 'ndk-bundle')
 
     # check for potentially breaking changes in build setup
-    fips_cmake = fips_dir + '/cmake-toolchains/android.toolchain.orig'
-    ndk_cmake = get_sdk_dir(fips_dir) + '/ndk-bundle/build/cmake/android.toolchain.cmake'
+    fips_cmake = f'{fips_dir}/cmake-toolchains/android.toolchain.orig'
+    ndk_cmake = f'{get_sdk_dir(fips_dir)}/ndk-bundle/build/cmake/android.toolchain.cmake'
     if compute_sha256(ndk_cmake, strip_whitespace) != compute_sha256(fips_cmake, strip_whitespace) :
         log.warn('android.toolchain.cmake in fips might be outdated...')
 

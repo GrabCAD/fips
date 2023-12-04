@@ -49,7 +49,7 @@ def get_default_config() :
     return default_config[util.get_host_platform()]
 
 #-------------------------------------------------------------------------------
-def get_toolchain(fips_dir, proj_dir, cfg) :
+def get_toolchain(fips_dir, proj_dir, cfg):
     """get the toolchain path location for a config, this first checks
     for a 'cmake-toolchain' attribute, and if this does not exist, builds
     a xxx.toolchain.cmake file from the platform name (only for cross-
@@ -73,53 +73,50 @@ def get_toolchain(fips_dir, proj_dir, cfg) :
 
     # build toolchain file name
     toolchain = None
-    if 'cmake-toolchain' in cfg :
+    if 'cmake-toolchain' in cfg:
         toolchain = cfg['cmake-toolchain']
-    else :
-        toolchain = '{}.toolchain.cmake'.format(cfg['platform'])
-    
-    # look for toolchain file in current project directory
-    toolchain_dir = util.get_toolchains_dir(proj_dir)
-    toolchain_path = None
-    if toolchain_dir:
-        toolchain_path = toolchain_dir + '/' + toolchain
-    if toolchain_path and os.path.isfile(toolchain_path) :
+    else:
+        toolchain = f"{cfg['platform']}.toolchain.cmake"
+
+    if toolchain_dir := util.get_toolchains_dir(proj_dir):
+        toolchain_path = f'{toolchain_dir}/{toolchain}'
+    else:
+        toolchain_path = None
+    if toolchain_path and os.path.isfile(toolchain_path):
         return toolchain_path
-    else :
-        # look for toolchain in all imported directories
-        _, imported_projs = dep.get_all_imports_exports(fips_dir, proj_dir)
-        for imported_proj_name in imported_projs :
-            imported_proj_dir = imported_projs[imported_proj_name]['proj_dir']
-            toolchain_dir = util.get_toolchains_dir(imported_proj_dir)
-            toolchain_path = None
-            if toolchain_dir:
-                toolchain_path = toolchain_dir + '/' + toolchain
-            if toolchain_path and os.path.isfile(toolchain_path):
-                return toolchain_path
-        else :
+    # look for toolchain in all imported directories
+    _, imported_projs = dep.get_all_imports_exports(fips_dir, proj_dir)
+    for imported_proj_name in imported_projs:
+        imported_proj_dir = imported_projs[imported_proj_name]['proj_dir']
+        toolchain_dir = util.get_toolchains_dir(imported_proj_dir)
+        toolchain_path = None
+        if toolchain_dir:
+            toolchain_path = f'{toolchain_dir}/{toolchain}'
+        if toolchain_path and os.path.isfile(toolchain_path):
+            return toolchain_path
+    else:
             # toolchain is not in current project or imported projects, 
             # try the fips directory
-            toolchain_path = '{}/cmake-toolchains/{}'.format(fips_dir, toolchain)
-            if os.path.isfile(toolchain_path) :
-                return toolchain_path
+        toolchain_path = f'{fips_dir}/cmake-toolchains/{toolchain}'
+        if os.path.isfile(toolchain_path) :
+            return toolchain_path
     # fallthrough: no toolchain file found
     return None
 
 #-------------------------------------------------------------------------------
-def exists(pattern, proj_dirs) : 
+def exists(pattern, proj_dirs):
     """test if at least one matching config exists
 
     :param pattern:     config name pattern (e.g. 'linux-make-*')
     :param proj_dir:    array of toplevel dirs to search (must have /configs subdir)
     :returns:           True if at least one matching config exists
     """
-    for curDir in proj_dirs :
-        if len(glob.glob('{}/configs/{}.yml'.format(curDir, pattern))) > 0 :
-            return True
-    return False
+    return any(
+        glob.glob(f'{curDir}/configs/{pattern}.yml') for curDir in proj_dirs
+    )
 
 #-------------------------------------------------------------------------------
-def get_config_dirs(fips_dir, proj_dir) :
+def get_config_dirs(fips_dir, proj_dir):
     """return list of config directories, including all imports
 
     :param fips_dir: absolute fips directory
@@ -127,21 +124,20 @@ def get_config_dirs(fips_dir, proj_dir) :
     :returns:        list of all directories with config files
     """
     dirs = []
-    if fips_dir != proj_dir :
+    if fips_dir != proj_dir:
         success, result = dep.get_all_imports_exports(fips_dir, proj_dir)
-        if success :
-            for dep_proj_name in result :
+        if success:
+            for dep_proj_name in result:
                 dep_proj_dir = result[dep_proj_name]['proj_dir']
-                dep_configs_dir = util.get_configs_dir(dep_proj_dir)
-                if dep_configs_dir:
+                if dep_configs_dir := util.get_configs_dir(dep_proj_dir):
                     dirs.append(dep_configs_dir)
-        else :
+        else:
             log.warn("missing import directories, please run 'fips fetch'")
-    dirs.append(fips_dir + '/configs')
+    dirs.append(f'{fips_dir}/configs')
     return dirs
 
 #-------------------------------------------------------------------------------
-def list(fips_dir, proj_dir, pattern) :
+def list(fips_dir, proj_dir, pattern):
     """return { dir : [cfgname, ...] } in fips_dir/configs and
     proj_dir/fips-files/configs
 
@@ -152,9 +148,9 @@ def list(fips_dir, proj_dir, pattern) :
     """
     dirs = get_config_dirs(fips_dir, proj_dir)
     res = OrderedDict()
-    for curDir in dirs :
+    for curDir in dirs:
         res[curDir] = []
-        paths = glob.glob('{}/*.yml'.format(curDir))
+        paths = glob.glob(f'{curDir}/*.yml')
         for path in paths :
             fname = os.path.split(path)[1]
             fname = os.path.splitext(fname)[0]
@@ -163,7 +159,7 @@ def list(fips_dir, proj_dir, pattern) :
     return res
 
 #-------------------------------------------------------------------------------
-def load(fips_dir, proj_dir, pattern) :
+def load(fips_dir, proj_dir, pattern):
     """load one or more matching configs from fips and current project dir
 
     :param fips_dir:    absolute fips directory
@@ -173,8 +169,8 @@ def load(fips_dir, proj_dir, pattern) :
     """
     dirs = get_config_dirs(fips_dir, proj_dir)
     configs = []
-    for curDir in dirs :
-        paths = glob.glob('{}/{}.yml'.format(curDir, pattern))
+    for curDir in dirs:
+        paths = glob.glob(f'{curDir}/{pattern}.yml')
         for path in paths :
             try :
                 with open(path, 'r') as f :
@@ -233,7 +229,7 @@ def check_sdk(fips_dir, platform_name) :
         return True
 
 #-------------------------------------------------------------------------------
-def check_config_valid(fips_dir, proj_dir, cfg, print_errors=False) :
+def check_config_valid(fips_dir, proj_dir, cfg, print_errors=False):
     """check if provided config is valid, and print errors if not
 
     :param cfg:     a loaded config object
@@ -246,31 +242,35 @@ def check_config_valid(fips_dir, proj_dir, cfg, print_errors=False) :
     # (NOTE: name and folder should always be present since they are appended
     # during loading)
     required_fields = ['name', 'folder', 'platform', 'generator', 'build_tool', 'build_type']
-    for field in required_fields :
-        if field not in cfg :
-            messages.append("missing field '{}' in '{}'".format(field, cfg['path']))
+    for field in required_fields:
+        if field not in cfg:
+            messages.append(f"missing field '{field}' in '{cfg['path']}'")
             valid = False
-    
+
     # check if the target platform SDK is installed
-    if not check_sdk(fips_dir, cfg['platform']) :
-        messages.append("platform sdk for '{}' not installed (see './fips help setup')".format(cfg['platform']))
+    if not check_sdk(fips_dir, cfg['platform']):
+        messages.append(
+            f"platform sdk for '{cfg['platform']}' not installed (see './fips help setup')"
+        )
         valid = False
 
     # check if build tool is valid
-    if not valid_build_tool(cfg['build_tool']) :
-        messages.append("invalid build_tool name '{}' in '{}'".format(cfg['build_tool'], cfg['path']))
+    if not valid_build_tool(cfg['build_tool']):
+        messages.append(
+            f"invalid build_tool name '{cfg['build_tool']}' in '{cfg['path']}'"
+        )
         valid = False
 
     # check if the build tool can be found
-    if not check_build_tool(fips_dir, cfg['build_tool']) :
-        messages.append("build tool '{}' not found".format(cfg['build_tool']))
+    if not check_build_tool(fips_dir, cfg['build_tool']):
+        messages.append(f"build tool '{cfg['build_tool']}' not found")
         valid = False
 
     # check if the toolchain file can be found (if this is a crosscompiling toolchain)
-    if cfg['platform'] not in native_platforms :
+    if cfg['platform'] not in native_platforms:
         toolchain_path = get_toolchain(fips_dir, proj_dir, cfg)
-        if not toolchain_path :
-            messages.append("toolchain file not found for config '{}'!".format(cfg['name']))
+        if not toolchain_path:
+            messages.append(f"toolchain file not found for config '{cfg['name']}'!")
             valid = False
 
     if print_errors :

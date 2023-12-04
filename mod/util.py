@@ -32,17 +32,17 @@ def get_workspace_dir(fips_dir) :
     return os.path.split(fips_dir)[0]
 
 #-------------------------------------------------------------------------------
-def get_project_dir(fips_dir, proj_name) :
+def get_project_dir(fips_dir, proj_name):
     """get absolute path to project directory in same workspace as fips
 
     :param fips_dir:    absolute path of fips
     :param proj_name:   project name
     :returns:           absolute path to project in same directory as fips
     """
-    return get_workspace_dir(fips_dir) + '/' + proj_name
+    return f'{get_workspace_dir(fips_dir)}/{proj_name}'
 
 #-------------------------------------------------------------------------------
-def get_build_dir(fips_dir, proj_name, cfg) :
+def get_build_dir(fips_dir, proj_name, cfg):
     """get absolute path to build directory in same workspace as fips for 
     given configuration
 
@@ -52,10 +52,10 @@ def get_build_dir(fips_dir, proj_name, cfg) :
     :returns:           absolute path of build directory
     """
     cfg_name = cfg if type(cfg) == str else cfg['name']
-    return '{}/fips-build/{}/{}'.format(get_workspace_dir(fips_dir), proj_name, cfg_name)
+    return f'{get_workspace_dir(fips_dir)}/fips-build/{proj_name}/{cfg_name}'
 
 #-------------------------------------------------------------------------------
-def get_deploy_dir(fips_dir, proj_name, cfg) :
+def get_deploy_dir(fips_dir, proj_name, cfg):
     """get absolute path to deploy directory in same workspace as fips
 
     :param fips_dir:    absolute path of fips
@@ -64,7 +64,7 @@ def get_deploy_dir(fips_dir, proj_name, cfg) :
     :returns:           absolute path of deploy directory
     """
     cfg_name = cfg if type(cfg) == str else cfg['name']
-    return '{}/fips-deploy/{}/{}'.format(get_workspace_dir(fips_dir), proj_name, cfg_name)
+    return f'{get_workspace_dir(fips_dir)}/fips-deploy/{proj_name}/{cfg_name}'
 
 #-------------------------------------------------------------------------------
 def get_fips_dir(proj_dir, name):
@@ -80,8 +80,8 @@ def get_fips_dir(proj_dir, name):
     :param proj_dir:    absolute path of project directory
     :name:              the name without the 'fips-' prefix
     """
-    d0 = proj_dir + '/fips-' + name
-    d1 = proj_dir + '/fips-files/' + name
+    d0 = f'{proj_dir}/fips-{name}'
+    d1 = f'{proj_dir}/fips-files/{name}'
     if os.path.isdir(d0):
         return d0
     elif os.path.isdir(d1):
@@ -140,7 +140,7 @@ def get_giturl_from_url(url) :
     return url.split('#')[0]
 
 #-------------------------------------------------------------------------------
-def get_gitbranch_from_url(url) :
+def get_gitbranch_from_url(url):
     """extracts the branch name from an url string
     (after the optional '#'), returns 'master' if no branch name
     specified.
@@ -148,10 +148,7 @@ def get_gitbranch_from_url(url) :
     :param url:     an url string, with optional '#' branch name appended
     :returns:       the extracted branch name, or 'master'
     """
-    if '#' in url :
-        return url.split('#')[1]
-    else :
-        return 'master'
+    return url.split('#')[1] if '#' in url else 'master'
 
 #-------------------------------------------------------------------------------
 def get_project_name_from_url(url) :
@@ -172,14 +169,14 @@ def get_project_name_from_dir(proj_dir) :
     return os.path.split(proj_dir)[1]
 
 #-------------------------------------------------------------------------------
-def load_fips_yml(proj_dir) :
+def load_fips_yml(proj_dir):
     """load the fips.yml file from project directory
 
     :param proj_dir:    absolute project directory
     :returns:           dictionary object
     """
     dic = None
-    path = proj_dir + '/fips.yml'
+    path = f'{proj_dir}/fips.yml'
     if os.path.isfile(path) :
         with open(path, 'r') as f:
             dic = yaml.load(f)
@@ -188,7 +185,7 @@ def load_fips_yml(proj_dir) :
     return dic
 
 #-------------------------------------------------------------------------------
-def lookup_target_cwd(proj_dir, target) :
+def lookup_target_cwd(proj_dir, target):
     """lookup optional working directory for target from fips.yml,
     return None if no cwd has been specified for this target in fips.yml
 
@@ -198,35 +195,32 @@ def lookup_target_cwd(proj_dir, target) :
     """
     target_cwd = None
     dic = load_fips_yml(proj_dir)
-    if 'run' in dic :
-        if target in dic['run'] :
-            if 'cwd' in dic['run'][target] :
-                target_cwd = proj_dir + '/' + dic['run'][target]['cwd']
+    if 'run' in dic:
+        if target in dic['run']:
+            if 'cwd' in dic['run'][target]:
+                target_cwd = f'{proj_dir}/' + dic['run'][target]['cwd']
     return target_cwd
 
 #-------------------------------------------------------------------------------
-def is_valid_project_dir(proj_dir) :
+def is_valid_project_dir(proj_dir):
     """test if the provided directory is a valid fips project (has a
     fips.yml file)
 
     :param proj_dir:    absolute project directory to check
     :returns:           True if a valid fips project
     """
-    if os.path.isdir(proj_dir) :
-        if not os.path.isfile(proj_dir + '/fips.yml') :
-            return False
-        return True
-    else :
+    if not os.path.isdir(proj_dir):
         return False
+    return bool(os.path.isfile(f'{proj_dir}/fips.yml'))
 
 #-------------------------------------------------------------------------------
-def ensure_valid_project_dir(proj_dir) :
+def ensure_valid_project_dir(proj_dir):
     """test if project dir is valid, if not, dump error and abort
 
     :param proj_dir:    absolute project directory to check
     """
-    if not is_valid_project_dir(proj_dir) :
-        log.error("'{}' is not a valid project directory".format(proj_dir))
+    if not is_valid_project_dir(proj_dir):
+        log.error(f"'{proj_dir}' is not a valid project directory")
 
 #-------------------------------------------------------------------------------
 def is_git_url(url) :
@@ -240,15 +234,15 @@ def is_git_url(url) :
     return url[-4:] == '.git'
 
 #-------------------------------------------------------------------------------
-def confirm(question) :
+def confirm(question):
     """ask user to confirm (y/N)
 
     :param question:    the question to confirm
     :return:            True: user pressed 'y', False: user pressed 'n'
     """
     validAnswers={'': False, 'yes': True, 'ye': True, 'y': True, 'no': False, 'n': False }
-    while True :
-        sys.stdout.write(question + ' [y/N]: ')
+    while True:
+        sys.stdout.write(f'{question} [y/N]: ')
         choice = raw_input().lower()
         if choice in validAnswers :
             return validAnswers[choice]
@@ -256,10 +250,10 @@ def confirm(question) :
             log.info("please respond with 'y', 'yes', 'n' or 'no'")
 
 #-------------------------------------------------------------------------------
-def url_download_hook(count, block_size, total_size) :
+def url_download_hook(count, block_size, total_size):
     """a download progress hook for urllib"""
     percent = int(count * block_size * 100 / total_size)
-    sys.stdout.write('\r{}%'.format(percent))
+    sys.stdout.write(f'\r{percent}%')
 
 #-------------------------------------------------------------------------------
 def get_host_platform() :
@@ -276,7 +270,7 @@ def get_host_platform() :
 def get_cfg_target_list(fips_dir, proj_dir, cfg):
     proj_name = get_project_name_from_dir(proj_dir)
     build_dir = get_build_dir(fips_dir, proj_name, cfg)
-    targets_path = build_dir + '/fips_targets.yml'
+    targets_path = f'{build_dir}/fips_targets.yml'
     if os.path.isfile(targets_path) :
         targets = []
         with open(targets_path) as f :
@@ -289,7 +283,7 @@ def get_cfg_target_list(fips_dir, proj_dir, cfg):
 def get_cfg_headersdirs_by_target(fips_dir, proj_dir, cfg):
     proj_name = get_project_name_from_dir(proj_dir)
     build_dir = get_build_dir(fips_dir, proj_name, cfg)
-    path = build_dir + '/fips_headerdirs.yml'
+    path = f'{build_dir}/fips_headerdirs.yml'
     if os.path.isfile(path):
         headerdirs = {}
         with open(path) as f:
@@ -302,7 +296,7 @@ def get_cfg_headersdirs_by_target(fips_dir, proj_dir, cfg):
 def get_cfg_defines_by_target(fips_dir, proj_dir, cfg):
     proj_name = get_project_name_from_dir(proj_dir)
     build_dir = get_build_dir(fips_dir, proj_name, cfg)
-    path = build_dir + '/fips_defines.yml'
+    path = f'{build_dir}/fips_defines.yml'
     if os.path.isfile(path):
         defines = {}
         with open(path) as f:
