@@ -6,7 +6,7 @@ def run(fips_dir, proj_dir, args):
             proj_name = args[1]
             proj_dir = util.get_project_dir(fips_dir, proj_name)
         if not util.is_valid_project_dir(proj_dir):
-            log.error('{} is not a valid fips project!'.format(proj_name))
+            log.error(f'{proj_name} is not a valid fips project!')
         if args[0] == 'build':
             markdeep.build(fips_dir, proj_dir)
         elif args[0] == 'view':

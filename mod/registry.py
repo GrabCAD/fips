@@ -5,11 +5,11 @@ import yaml
 registry = None
 
 #-------------------------------------------------------------------------------
-def load(fips_dir) :
+def load(fips_dir):
     """load registry on demand"""
     global registry
-    if registry is None :
-        with open(fips_dir + '/registry.yml', 'r') as f :
+    if registry is None:
+        with open(f'{fips_dir}/registry.yml', 'r') as f:
             registry = yaml.load(f)
 
 #-------------------------------------------------------------------------------
@@ -24,7 +24,7 @@ def exists(fips_dir, proj_name) :
     return proj_name in registry
 
 #-------------------------------------------------------------------------------
-def lookup_url(fips_dir, proj_name) :
+def lookup_url(fips_dir, proj_name):
     """lookup git url for project name, return None if not found
 
     :param fips_dir:    absolute path to fips
@@ -32,13 +32,10 @@ def lookup_url(fips_dir, proj_name) :
     :returns:           git url from registry, or None
     """
     load(fips_dir)
-    if proj_name in registry :
-        return registry[proj_name]
-    else :
-        return None
+    return registry[proj_name] if proj_name in registry else None
 
 #-------------------------------------------------------------------------------
-def get_url(fips_dir, name_or_url) :
+def get_url(fips_dir, name_or_url):
     """Checks if name_or_url is in the registry, if yes, return url
     from registry, otherwise return name_or_url. This is useful
     if a parameter can be either a project name or a valid URL, and
@@ -49,7 +46,4 @@ def get_url(fips_dir, name_or_url) :
     :returns:           URL from registry, or the original name_or_url param
     """
     load(fips_dir)
-    if name_or_url in registry :
-        return registry[name_or_url]
-    else :
-        return name_or_url
+    return registry[name_or_url] if name_or_url in registry else name_or_url

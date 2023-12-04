@@ -20,20 +20,14 @@ import yaml
 from mod import log
 import genutil
 
-def processFile(attrs) :
+def processFile(attrs):
     # dynamically load (and execute) the generator module
     absPyPath = attrs['generator']
     input = attrs['in']
     out_src = attrs['out_src']
     out_hdr = attrs['out_hdr']
-    if 'args' in attrs :
-        args = attrs['args']
-    else :
-        args = None
-    if 'env' in attrs :
-        env = attrs['env']
-    else :
-        env = None
+    args = attrs['args'] if 'args' in attrs else None
+    env = attrs['env'] if 'env' in attrs else None
     genutil.setEnv(env)
     path, script = os.path.split(absPyPath)
     sys.path.insert(0, path)

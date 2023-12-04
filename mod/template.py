@@ -6,7 +6,7 @@ from string import Template
 from mod import log, util
 
 #-------------------------------------------------------------------------------
-def write_git_ignore(proj_dir, entries) :
+def write_git_ignore(proj_dir, entries):
     """modify or create the .gitignore file with fips-specific
     entries. fips entries will go into a special section marked with:
         #>fips
@@ -14,7 +14,7 @@ def write_git_ignore(proj_dir, entries) :
 
     :param entries: array of fips .gitignore strings
     """
-    path = proj_dir + '/.gitignore'
+    path = f'{proj_dir}/.gitignore'
     out_lines = []
     if os.path.isfile(path) :
         # .gitignore already exists, read into lines array,
@@ -29,10 +29,8 @@ def write_git_ignore(proj_dir, entries) :
                 out_lines.append(l)
             if '#<fips' in l :
                 copy_line = True
-    
-    # append the fips .gitignore entries
-    out_lines.append('#>fips\n')
-    out_lines.append('# this area is managed by fips, do not edit\n')
+
+    out_lines.extend(('#>fips\n', '# this area is managed by fips, do not edit\n'))
     out_lines.extend('\n'.join(entries) + '\n')
     out_lines.append('#<fips\n')
 
@@ -40,10 +38,10 @@ def write_git_ignore(proj_dir, entries) :
     with open(path, 'w') as f :
         f.writelines(out_lines)
 
-    log.info("wrote '{}'".format(path))
+    log.info(f"wrote '{path}'")
     
 #-------------------------------------------------------------------------------
-def copy_template_file(fips_dir, proj_dir, filename, values, silent=False) :
+def copy_template_file(fips_dir, proj_dir, filename, values, silent=False):
     """copy a template file from fips/templates to the project 
     directory and replace template values (e.g. the project name),
     ask for user permission if files exist
@@ -56,16 +54,16 @@ def copy_template_file(fips_dir, proj_dir, filename, values, silent=False) :
     :returns:           True file overwritten, False on not overwritten
     """
     
-    src_path = fips_dir + '/templates/' + filename
-    dst_path = proj_dir + '/' + filename
+    src_path = f'{fips_dir}/templates/{filename}'
+    dst_path = f'{proj_dir}/{filename}'
 
-    if not os.path.isfile(src_path) :
-        log.error("template src file '{}' doesn't exist".format(src_path))
-    
-    if not silent :
-        if os.path.isfile(dst_path) :
-            if not util.confirm("overwrite '{}'?".format(dst_path)) :
-                log.info("skipping '{}'".format(dst_path))
+    if not os.path.isfile(src_path):
+        log.error(f"template src file '{src_path}' doesn't exist")
+
+    if not silent:
+        if os.path.isfile(dst_path):
+            if not util.confirm(f"overwrite '{dst_path}'?"):
+                log.info(f"skipping '{dst_path}'")
                 return False
 
     content = None
@@ -75,8 +73,8 @@ def copy_template_file(fips_dir, proj_dir, filename, values, silent=False) :
     with open(dst_path, 'w') as f :
         f.write(content)
 
-    if not silent :
-        log.info("wrote '{}'".format(dst_path))
+    if not silent:
+        log.info(f"wrote '{dst_path}'")
     return True
 
 

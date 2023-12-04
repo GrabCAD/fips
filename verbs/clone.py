@@ -6,20 +6,20 @@ clone [git-url]
 from mod import log, util, project, registry, dep
 
 #-------------------------------------------------------------------------------
-def run(fips_dir, proj_dir, args) :
+def run(fips_dir, proj_dir, args):
     """run the get verb"""
-    if len(args) > 0 :
+    if len(args) > 0:
         name = args[0]
-        
+
         # check project registry to resolve git url
-        if registry.exists(fips_dir, name) :
+        if registry.exists(fips_dir, name):
             url = registry.lookup_url(fips_dir, name)
-            log.info("registry lookup: {} => {}".format(name, url))
-        else :
+            log.info(f"registry lookup: {name} => {url}")
+        else:
             url = name
-            log.info("'{}' not in fips registry, trying as git url".format(url))
+            log.info(f"'{url}' not in fips registry, trying as git url")
         project.clone(fips_dir, url)
-    else :
+    else:
         log.error("expected one arg [git-url]")
 
 #-------------------------------------------------------------------------------

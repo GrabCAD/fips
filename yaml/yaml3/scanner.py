@@ -498,11 +498,6 @@ class Scanner:
                 mark = self.get_mark()
                 self.tokens.append(BlockSequenceStartToken(mark, mark))
 
-        # It's an error for the block entry to occur in the flow context,
-        # but we let the parser detect this.
-        else:
-            pass
-
         # Simple keys are allowed after '-'.
         self.allow_simple_key = True
 
@@ -712,22 +707,12 @@ class Scanner:
     def check_key(self):
 
         # KEY(flow context):    '?'
-        if self.flow_level:
-            return True
-
-        # KEY(block context):   '?' (' '|'\n')
-        else:
-            return self.peek(1) in '\0 \t\r\n\x85\u2028\u2029'
+        return True if self.flow_level else self.peek(1) in '\0 \t\r\n\x85\u2028\u2029'
 
     def check_value(self):
 
         # VALUE(flow context):  ':'
-        if self.flow_level:
-            return True
-
-        # VALUE(block context): ':' (' '|'\n')
-        else:
-            return self.peek(1) in '\0 \t\r\n\x85\u2028\u2029'
+        return True if self.flow_level else self.peek(1) in '\0 \t\r\n\x85\u2028\u2029'
 
     def check_plain(self):
 
@@ -908,28 +893,31 @@ class Scanner:
         # Therefore we restrict aliases to numbers and ASCII letters.
         start_mark = self.get_mark()
         indicator = self.peek()
-        if indicator == '*':
-            name = 'alias'
-        else:
-            name = 'anchor'
+        name = 'alias' if indicator == '*' else 'anchor'
         self.forward()
         length = 0
         ch = self.peek(length)
         while '0' <= ch <= '9' or 'A' <= ch <= 'Z' or 'a' <= ch <= 'z'  \
-                or ch in '-_':
+                    or ch in '-_':
             length += 1
             ch = self.peek(length)
         if not length:
-            raise ScannerError("while scanning an %s" % name, start_mark,
-                    "expected alphabetic or numeric character, but found %r"
-                    % ch, self.get_mark())
+            raise ScannerError(
+                f"while scanning an {name}",
+                start_mark,
+                "expected alphabetic or numeric character, but found %r" % ch,
+                self.get_mark(),
+            )
         value = self.prefix(length)
         self.forward(length)
         ch = self.peek()
         if ch not in '\0 \t\r\n\x85\u2028\u2029?:,]}%@`':
-            raise ScannerError("while scanning an %s" % name, start_mark,
-                    "expected alphabetic or numeric character, but found %r"
-                    % ch, self.get_mark())
+            raise ScannerError(
+                f"while scanning an {name}",
+                start_mark,
+                "expected alphabetic or numeric character, but found %r" % ch,
+                self.get_mark(),
+            )
         end_mark = self.get_mark()
         return TokenClass(value, start_mark, end_mark)
 
@@ -977,11 +965,7 @@ class Scanner:
     def scan_block_scalar(self, style):
         # See the specification for details.
 
-        if style == '>':
-            folded = True
-        else:
-            folded = False
-
+        folded = style == '>'
         chunks = []
         start_mark = self.get_mark()
 
@@ -992,8 +976,7 @@ class Scanner:
 
         # Determine the indentation level and go to the first non-empty line.
         min_indent = self.indent+1
-        if min_indent < 1:
-            min_indent = 1
+        min_indent = max(min_indent, 1)
         if increment is None:
             breaks, max_indent, end_mark = self.scan_block_scalar_indentation()
             indent = max(min_indent, max_indent)
@@ -1013,32 +996,19 @@ class Scanner:
             self.forward(length)
             line_break = self.scan_line_break()
             breaks, end_mark = self.scan_block_scalar_breaks(indent)
-            if self.column == indent and self.peek() != '\0':
-
-                # Unfortunately, folding rules are ambiguous.
-                #
-                # This is the folding according to the specification:
-                
-                if folded and line_break == '\n'    \
-                        and leading_non_space and self.peek() not in ' \t':
-                    if not breaks:
-                        chunks.append(' ')
-                else:
-                    chunks.append(line_break)
-                
-                # This is Clark Evans's interpretation (also in the spec
-                # examples):
-                #
-                #if folded and line_break == '\n':
-                #    if not breaks:
-                #        if self.peek() not in ' \t':
-                #            chunks.append(' ')
-                #        else:
-                #            chunks.append(line_break)
-                #else:
-                #    chunks.append(line_break)
-            else:
+            if self.column != indent or self.peek() == '\0':
                 break
+
+            # Unfortunately, folding rules are ambiguous.
+            #
+            # This is the folding according to the specification:
+
+            if folded and line_break == '\n'    \
+                        and leading_non_space and self.peek() not in ' \t':
+                if not breaks:
+                    chunks.append(' ')
+            else:
+                chunks.append(line_break)
 
         # Chomp the tail.
         if chomping is not False:
@@ -1056,10 +1026,7 @@ class Scanner:
         increment = None
         ch = self.peek()
         if ch in '+-':
-            if ch == '+':
-                chomping = True
-            else:
-                chomping = False
+            chomping = ch == '+'
             self.forward()
             ch = self.peek()
             if ch in '0123456789':
@@ -1078,10 +1045,7 @@ class Scanner:
             self.forward()
             ch = self.peek()
             if ch in '+-':
-                if ch == '+':
-                    chomping = True
-                else:
-                    chomping = False
+                chomping = ch == '+'
                 self.forward()
         ch = self.peek()
         if ch not in '\0 \r\n\x85\u2028\u2029':
@@ -1139,10 +1103,7 @@ class Scanner:
         # mark the beginning and the end of them. Therefore we are less
         # restrictive then the specification requires. We only need to check
         # that document separators are not included in scalars.
-        if style == '"':
-            double = True
-        else:
-            double = False
+        double = style == '"'
         chunks = []
         start_mark = self.get_mark()
         quote = self.peek()
@@ -1256,8 +1217,10 @@ class Scanner:
             # Instead of checking indentation, we check for document
             # separators.
             prefix = self.prefix(3)
-            if (prefix == '---' or prefix == '...')   \
-                    and self.peek(3) in '\0 \t\r\n\x85\u2028\u2029':
+            if (
+                prefix in ['---', '...']
+                and self.peek(3) in '\0 \t\r\n\x85\u2028\u2029'
+            ):
                 raise ScannerError("while scanning a quoted scalar", start_mark,
                         "found unexpected document separator", self.get_mark())
             while self.peek() in ' \t':
@@ -1329,8 +1292,10 @@ class Scanner:
             line_break = self.scan_line_break()
             self.allow_simple_key = True
             prefix = self.prefix(3)
-            if (prefix == '---' or prefix == '...')   \
-                    and self.peek(3) in '\0 \t\r\n\x85\u2028\u2029':
+            if (
+                prefix in ['---', '...']
+                and self.peek(3) in '\0 \t\r\n\x85\u2028\u2029'
+            ):
                 return
             breaks = []
             while self.peek() in ' \r\n\x85\u2028\u2029':
@@ -1339,8 +1304,10 @@ class Scanner:
                 else:
                     breaks.append(self.scan_line_break())
                     prefix = self.prefix(3)
-                    if (prefix == '---' or prefix == '...')   \
-                            and self.peek(3) in '\0 \t\r\n\x85\u2028\u2029':
+                    if (
+                        prefix in ['---', '...']
+                        and self.peek(3) in '\0 \t\r\n\x85\u2028\u2029'
+                    ):
                         return
             if line_break != '\n':
                 chunks.append(line_break)
@@ -1357,19 +1324,27 @@ class Scanner:
         # tag handles. I have allowed it anyway.
         ch = self.peek()
         if ch != '!':
-            raise ScannerError("while scanning a %s" % name, start_mark,
-                    "expected '!', but found %r" % ch, self.get_mark())
+            raise ScannerError(
+                f"while scanning a {name}",
+                start_mark,
+                "expected '!', but found %r" % ch,
+                self.get_mark(),
+            )
         length = 1
         ch = self.peek(length)
         if ch != ' ':
             while '0' <= ch <= '9' or 'A' <= ch <= 'Z' or 'a' <= ch <= 'z'  \
-                    or ch in '-_':
+                        or ch in '-_':
                 length += 1
                 ch = self.peek(length)
             if ch != '!':
                 self.forward(length)
-                raise ScannerError("while scanning a %s" % name, start_mark,
-                        "expected '!', but found %r" % ch, self.get_mark())
+                raise ScannerError(
+                    f"while scanning a {name}",
+                    start_mark,
+                    "expected '!', but found %r" % ch,
+                    self.get_mark(),
+                )
             length += 1
         value = self.prefix(length)
         self.forward(length)
@@ -1382,7 +1357,7 @@ class Scanner:
         length = 0
         ch = self.peek(length)
         while '0' <= ch <= '9' or 'A' <= ch <= 'Z' or 'a' <= ch <= 'z'  \
-                or ch in '-;/?:@&=+$,_.!~*\'()[]%':
+                    or ch in '-;/?:@&=+$,_.!~*\'()[]%':
             if ch == '%':
                 chunks.append(self.prefix(length))
                 self.forward(length)
@@ -1396,8 +1371,12 @@ class Scanner:
             self.forward(length)
             length = 0
         if not chunks:
-            raise ScannerError("while parsing a %s" % name, start_mark,
-                    "expected URI, but found %r" % ch, self.get_mark())
+            raise ScannerError(
+                f"while parsing a {name}",
+                start_mark,
+                "expected URI, but found %r" % ch,
+                self.get_mark(),
+            )
         return ''.join(chunks)
 
     def scan_uri_escapes(self, name, start_mark):
@@ -1408,15 +1387,19 @@ class Scanner:
             self.forward()
             for k in range(2):
                 if self.peek(k) not in '0123456789ABCDEFabcdef':
-                    raise ScannerError("while scanning a %s" % name, start_mark,
-                            "expected URI escape sequence of 2 hexdecimal numbers, but found %r"
-                            % self.peek(k), self.get_mark())
+                    raise ScannerError(
+                        f"while scanning a {name}",
+                        start_mark,
+                        "expected URI escape sequence of 2 hexdecimal numbers, but found %r"
+                        % self.peek(k),
+                        self.get_mark(),
+                    )
             codes.append(int(self.prefix(2), 16))
             self.forward(2)
         try:
             value = bytes(codes).decode('utf-8')
         except UnicodeDecodeError as exc:
-            raise ScannerError("while scanning a %s" % name, start_mark, str(exc), mark)
+            raise ScannerError(f"while scanning a {name}", start_mark, str(exc), mark)
         return value
 
     def scan_line_break(self):

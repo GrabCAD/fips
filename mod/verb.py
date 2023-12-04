@@ -15,7 +15,7 @@ verbs = {}
 proj_verbs = OrderedDict()
 
 #-------------------------------------------------------------------------------
-def import_verbs_from(proj_name, proj_dir, verb_dir) :
+def import_verbs_from(proj_name, proj_dir, verb_dir):
     """import all verb modules from a directory, populates the
     verb and proj_verbs global variables
 
@@ -28,9 +28,7 @@ def import_verbs_from(proj_name, proj_dir, verb_dir) :
     sys.path.insert(0, proj_dir)
 
     if verb_dir and os.path.isdir(verb_dir):
-        # get all .py file in verb dir
-        verb_paths = glob.glob(verb_dir + '/*.py')
-        if verb_paths :
+        if verb_paths := glob.glob(f'{verb_dir}/*.py'):
             for verb_path in verb_paths :
                 verb_module_name = os.path.split(verb_path)[1]
                 verb_module_name = os.path.splitext(verb_module_name)[0]
@@ -43,7 +41,7 @@ def import_verbs_from(proj_name, proj_dir, verb_dir) :
                     proj_verbs[proj_name].append(verb_module_name)
                         
 #-------------------------------------------------------------------------------
-def import_verbs(fips_dir, proj_dir) :
+def import_verbs(fips_dir, proj_dir):
     """import verbs from local and imported projects, populates
     the 'verbs' and 'proj_verbs' dictionaries
 
@@ -52,7 +50,7 @@ def import_verbs(fips_dir, proj_dir) :
     """
 
     # first import verbs from fips directory
-    import_verbs_from('fips', fips_dir, fips_dir + '/verbs')
+    import_verbs_from('fips', fips_dir, f'{fips_dir}/verbs')
 
     # now go through all imported projects
     if fips_dir != proj_dir :

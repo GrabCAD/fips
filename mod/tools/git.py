@@ -33,7 +33,7 @@ def check_exists_with_error():
         return False
 
 #-------------------------------------------------------------------------------
-def get_url_with_personal_access_token(url) :
+def get_url_with_personal_access_token(url):
     """return the repo url for private repos using a github personal access token
 
          handles both git@github.com and https://github.com urls
@@ -48,8 +48,9 @@ def get_url_with_personal_access_token(url) :
     github_https_url = 'https://github.com/'
     github_gitssh_url = 'git@github.com:'
 
-    github_personal_access_token = os.environ.get('FIPS_GITHUB_PERSONAL_ACCESS_TOKEN', None)
-    if github_personal_access_token:
+    if github_personal_access_token := os.environ.get(
+        'FIPS_GITHUB_PERSONAL_ACCESS_TOKEN', None
+    ):
         url_remainder_start = 0
         if url.startswith(github_https_url):
             url_remainder_start = len(github_https_url)
@@ -57,12 +58,12 @@ def get_url_with_personal_access_token(url) :
             url_remainder_start = len(github_gitssh_url)
 
         if url_remainder_start > 0:
-            url = 'https://' + github_personal_access_token + '@github.com/' + url[url_remainder_start:]
-    
+            url = f'https://{github_personal_access_token}@github.com/{url[url_remainder_start:]}'
+
     return url
 
 #-------------------------------------------------------------------------------
-def clone(url, branch, depth, name, cwd) :
+def clone(url, branch, depth, name, cwd):
     """git clone a remote git repo
     
     :param url:     the git url to clone from
@@ -74,13 +75,13 @@ def clone(url, branch, depth, name, cwd) :
     """
     check_exists_with_error()
     cmd = 'git clone --recursive'
-    if branch :
-        cmd += ' --branch {} --single-branch'.format(branch)
-    if depth :
-        cmd += ' --depth {}'.format(depth)
+    if branch:
+        cmd += f' --branch {branch} --single-branch'
+    if depth:
+        cmd += f' --depth {depth}'
 
     url = get_url_with_personal_access_token(url)
-    cmd += ' {} {}'.format(url, name)
+    cmd += f' {url} {name}'
     res = subprocess.call(cmd, cwd=cwd, shell=True)
     return res == 0
 
@@ -96,7 +97,7 @@ def add(proj_dir, update=False):
     try:
         subprocess.check_call('git add .', cwd=proj_dir, shell=True)
     except subprocess.CalledProcessError as e:
-        log.error("'git add .' failed with '{}'".format(e.returncode))
+        log.error(f"'git add .' failed with '{e.returncode}'")
 
 #-------------------------------------------------------------------------------
 def commit(proj_dir, msg):
@@ -106,9 +107,9 @@ def commit(proj_dir, msg):
     """
     check_exists_with_error()
     try:
-        subprocess.check_call('git commit -m "{}"'.format(msg), cwd=proj_dir, shell=True)
+        subprocess.check_call(f'git commit -m "{msg}"', cwd=proj_dir, shell=True)
     except subprocess.CalledProcessError as e:
-        log.error("'git commit' failed with '{}'".format(e.returncode))
+        log.error(f"'git commit' failed with '{e.returncode}'")
 
 #-------------------------------------------------------------------------------
 def commit_allow_empty(proj_dir, msg):
@@ -119,9 +120,11 @@ def commit_allow_empty(proj_dir, msg):
     """
     check_exists_with_error()
     try:
-        subprocess.check_call('git commit --allow-empty -m "{}"'.format(msg), cwd=proj_dir, shell=True)
+        subprocess.check_call(
+            f'git commit --allow-empty -m "{msg}"', cwd=proj_dir, shell=True
+        )
     except subprocess.CalledProcessError as e:
-        log.error("'git commit' failed with '{}'".format(e.returncode))
+        log.error(f"'git commit' failed with '{e.returncode}'")
 
 #-------------------------------------------------------------------------------
 def push(proj_dir):
@@ -133,16 +136,16 @@ def push(proj_dir):
     try:
         res = subprocess.check_call('git push', cwd=proj_dir, shell=True)
     except subprocess.CalledProcessError as e:
-        log.error("'git push' failed with '{}'".format(e.returncode))
+        log.error(f"'git push' failed with '{e.returncode}'")
 
 #-------------------------------------------------------------------------------
 def has_local_changes(proj_dir):
     """checks if a git repo has uncommitted or unpushed changes (basically
     anything which would make a git pull unsafe"""
     check_exists_with_error()
-    output = subprocess.check_output('git status --porcelain', 
-            cwd=proj_dir, shell=True).decode("utf-8")
-    if output:
+    if output := subprocess.check_output(
+        'git status --porcelain', cwd=proj_dir, shell=True
+    ).decode("utf-8"):
         return True
     # get current branch name and tracked remote if exists, this has
     # either the form:
@@ -159,9 +162,11 @@ def has_local_changes(proj_dir):
     else:
         cur_branch = cur_status
         cur_remote = ''
-    output = subprocess.check_output('git log {}..{} --oneline'.format(cur_remote, cur_branch),
-            cwd=proj_dir, shell=True).decode("utf-8")
-    if output:
+    if output := subprocess.check_output(
+        f'git log {cur_remote}..{cur_branch} --oneline',
+        cwd=proj_dir,
+        shell=True,
+    ).decode("utf-8"):
         return True
 
 #-------------------------------------------------------------------------------
@@ -192,7 +197,7 @@ def update(proj_dir):
         update_submodule(proj_dir)
         return True
     else:
-        log.warn('skipping {}, uncommitted or unpushed changes!'.format(proj_dir))
+        log.warn(f'skipping {proj_dir}, uncommitted or unpushed changes!')
         return False
 
 #-------------------------------------------------------------------------------
@@ -218,15 +223,17 @@ def get_branches(proj_dir) :
     return branches;
 
 #-------------------------------------------------------------------------------
-def checkout(proj_dir, revision) :
+def checkout(proj_dir, revision):
     """checkout a specific revision hash of a repository
 
     :param proj_dir:    a git repo dir
     :param revision:    SHA1 hash of the commit
     :returns:           True if git returns successful
     """
-    try :
-        output = subprocess.check_output('git checkout {}'.format(revision), cwd=proj_dir, shell=True).decode("utf-8")
+    try:
+        output = subprocess.check_output(
+            f'git checkout {revision}', cwd=proj_dir, shell=True
+        ).decode("utf-8")
         update_submodule(proj_dir)
         return output.split(':')[0] != 'error'
     except subprocess.CalledProcessError :
@@ -234,24 +241,21 @@ def checkout(proj_dir, revision) :
         return None
 
 #-------------------------------------------------------------------------------
-def has_uncommitted_files(proj_dir) :
+def has_uncommitted_files(proj_dir):
     """check whether a git repo has uncommitted files
 
     :param proj_dir:    a git repo dir
     :returns:           True/False and output string
     """
-    try :
+    try:
         output = subprocess.check_output('git status -s', cwd=proj_dir, shell=True).decode("utf-8")
-        if len(output) > 0 :
-            return True, output
-        else :
-            return False, output
+        return (True, output) if len(output) > 0 else (False, output)
     except subprocess.CalledProcessError :
         log.error("failed to call 'git status -s'")
         return False, ''
 
 #-------------------------------------------------------------------------------
-def get_remote_rev(proj_dir, remote_branch) :
+def get_remote_rev(proj_dir, remote_branch):
     """get the head rev of a remote branch
 
     :param proj_dir:        a git repo dir
@@ -259,34 +263,35 @@ def get_remote_rev(proj_dir, remote_branch) :
     :returns:               the revision string of the remote branch head or None
     """
     tokens = remote_branch.split('/')
-    try :
-        output = subprocess.check_output('git ls-remote {} {}'.format(tokens[0], tokens[1]), cwd=proj_dir, shell=True).decode("utf-8")
+    try:
+        output = subprocess.check_output(
+            f'git ls-remote {tokens[0]} {tokens[1]}', cwd=proj_dir, shell=True
+        ).decode("utf-8")
         # can return an empty string if the remote branch doesn't exist
-        if output != '':
-            return output.split()[0]
-        else :
-            return None
+        return output.split()[0] if output != '' else None
     except subprocess.CalledProcessError :
         log.error("failed to call 'git ls-remote'")
         return None
 
 #-------------------------------------------------------------------------------
-def get_local_rev(proj_dir, local_branch) :
+def get_local_rev(proj_dir, local_branch):
     """get the head rev of a local branch
 
     :param proj_dir:        a git repo dir
     :param local_branch:    local branch name (e.g. master)
     :returns:               the revision string of the local branch head or None
     """
-    try :
-        output = subprocess.check_output('git rev-parse {}'.format(local_branch), cwd=proj_dir, shell=True).decode("utf-8")
+    try:
+        output = subprocess.check_output(
+            f'git rev-parse {local_branch}', cwd=proj_dir, shell=True
+        ).decode("utf-8")
         return output.rstrip()
     except subprocess.CalledProcessError :
         log.error("failed to call 'git rev-parse'")
         return None
 
 #-------------------------------------------------------------------------------
-def check_out_of_sync(proj_dir) :
+def check_out_of_sync(proj_dir):
     """check through all branches of the git repo in proj_dir and
     returns an array of all branches that are out-of-sync with their
     remote branches (either have unpushed local changes, or un-pulled
@@ -301,47 +306,43 @@ def check_out_of_sync(proj_dir) :
 
     # first check whether there are uncommitted changes
     status, status_output = has_uncommitted_files(proj_dir)
-    if status :
+    if status:
         out_of_sync = True
-        log.warn("'{}' has uncommitted changes:".format(proj_dir))
+        log.warn(f"'{proj_dir}' has uncommitted changes:")
         log.info(status_output)
 
     # check whether local and remote branch are out of sync
     branches_out_of_sync = False
     branches = get_branches(proj_dir)
-    if not branches :
-        log.warn("'{}' no remote branches found".format(proj_dir))
-    for local_branch in branches :
+    if not branches:
+        log.warn(f"'{proj_dir}' no remote branches found")
+    for local_branch in branches:
         remote_branch = branches[local_branch]
-        remote_rev = get_remote_rev(proj_dir, remote_branch)
-
-        # remote_rev can be None if the remote branch doesn't exists,
-        # this is not an error
-        if remote_rev :
+        if remote_rev := get_remote_rev(proj_dir, remote_branch):
             local_rev = get_local_rev(proj_dir, local_branch)
-            if remote_rev != local_rev :
+            if remote_rev != local_rev:
                 out_of_sync = True
                 if not branches_out_of_sync:
                     # only show this once
-                    log.warn("'{}' branches out of sync:".format(proj_dir))
+                    log.warn(f"'{proj_dir}' branches out of sync:")
                     branches_out_of_sync = True
-                log.info("  {}: {}".format(local_branch, local_rev))
-                log.info("  {}: {}".format(remote_branch, remote_rev))
-                    
+                log.info(f"  {local_branch}: {local_rev}")
+                log.info(f"  {remote_branch}: {remote_rev}")
+
     return out_of_sync
 
 #-------------------------------------------------------------------------------
-def check_branch_out_of_sync(proj_dir, branch) :
+def check_branch_out_of_sync(proj_dir, branch):
     """check if a single branch is out of sync with remote repo"""
     check_exists_with_error()
 
     out_of_sync = False
     remote_branches = get_branches(proj_dir)
     local_rev = get_local_rev(proj_dir, branch)
-    if branch in remote_branches :
+    if branch in remote_branches:
         remote_rev = get_remote_rev(proj_dir, remote_branches[branch])
         out_of_sync = remote_rev != local_rev
-    else :
-        log.warn("'{}' no remote branch found for '{}'".format(proj_dir, branch))
+    else:
+        log.warn(f"'{proj_dir}' no remote branch found for '{branch}'")
 
     return out_of_sync

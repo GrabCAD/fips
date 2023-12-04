@@ -8,16 +8,12 @@ make [target] [config]
 from mod import log, util, settings, project
 
 #-------------------------------------------------------------------------------
-def run(fips_dir, proj_dir, args) :
+def run(fips_dir, proj_dir, args):
     """build a single target"""
     if not util.is_valid_project_dir(proj_dir) :
         log.error('must be run in a project directory')
-    tgt_name = None
-    cfg_name = None
-    if len(args) > 0 :
-        tgt_name = args[0]
-    if len(args) > 1:
-        cfg_name = args[1]
+    tgt_name = args[0] if len(args) > 0 else None
+    cfg_name = args[1] if len(args) > 1 else None
     if not cfg_name :
         cfg_name = settings.get(proj_dir, 'config')
     if not tgt_name :
